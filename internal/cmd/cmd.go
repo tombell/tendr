@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +10,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/tombell/tendr/internal/config"
+	"github.com/tombell/tendr/internal/herdr"
+	"github.com/tombell/tendr/internal/manager"
 )
 
 const ProjectsDir = "~/.config/tendr"
@@ -55,7 +60,19 @@ func (a App) Start(projects []string) error {
 	if len(projects) == 0 {
 		return errors.New("usage: tendr start <project names...>")
 	}
-	return ErrNotImplemented
+
+	loaded, err := loadProjects(projects)
+	if err != nil {
+		return err
+	}
+	client := herdr.New("", a.logger)
+	lifecycle := manager.New(client, manager.NewDefaultShell(a.logger))
+	for index, cfg := range loaded {
+		if err := lifecycle.Start(context.Background(), projects[index], cfg); err != nil {
+			return fmt.Errorf("start project %q: %w", projects[index], err)
+		}
+	}
+	return nil
 }
 
 func (a App) Stop(projects []string) error {
@@ -63,6 +80,32 @@ func (a App) Stop(projects []string) error {
 		return errors.New("usage: tendr stop <project names...>")
 	}
 	return ErrNotImplemented
+}
+
+func loadProjects(projects []string) ([]*config.Config, error) {
+	dir, err := expandHome(ProjectsDir)
+	if err != nil {
+		return nil, fmt.Errorf("resolve projects directory: %w", err)
+	}
+
+	configs := make([]*config.Config, 0, len(projects))
+	var invalid []string
+	for _, project := range projects {
+		if project == "" || filepath.Base(project) != project {
+			invalid = append(invalid, fmt.Sprintf("%s (invalid project name)", project))
+			continue
+		}
+		cfg, err := config.Load(filepath.Join(dir, project+".yml"))
+		if err != nil {
+			invalid = append(invalid, fmt.Sprintf("%s (%v)", project, err))
+			continue
+		}
+		configs = append(configs, cfg)
+	}
+	if len(invalid) > 0 {
+		return nil, fmt.Errorf("invalid projects: %s", strings.Join(invalid, ", "))
+	}
+	return configs, nil
 }
 
 func expandHome(path string) (string, error) {
