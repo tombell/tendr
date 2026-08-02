@@ -3,7 +3,6 @@ package herdr
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -37,7 +36,6 @@ type Client struct {
 	logger        *log.Logger
 	readyTimeout  time.Duration
 	pollInterval  time.Duration
-	serverOutput  io.Writer
 	commandRunner func(context.Context, string, []string) ([]byte, error)
 }
 
@@ -50,7 +48,6 @@ func New(binary string, logger *log.Logger) Client {
 		logger:       logger,
 		readyTimeout: 5 * time.Second,
 		pollInterval: 50 * time.Millisecond,
-		serverOutput: io.Discard,
 	}
 	client.commandRunner = client.exec
 	return client
@@ -91,8 +88,12 @@ func (c Client) StartSession(ctx context.Context, name string) error {
 
 	command := exec.Command(c.binary, "server")
 	command.Env = withSession(os.Environ(), name)
-	command.Stdout = c.serverOutput
-	command.Stderr = c.serverOutput
+	command.Stdout = io.Discard
+	command.Stderr = io.Discard
+	if c.logger != nil {
+		command.Stdout = c.logger.Writer()
+		command.Stderr = c.logger.Writer()
+	}
 	if err := command.Start(); err != nil {
 		return fmt.Errorf("start server for session %q: %w", name, err)
 	}
@@ -244,7 +245,7 @@ func (c Client) run(ctx context.Context, session string, args ...string) ([]byte
 		if session != "" {
 			prefix = sessionEnvironment + "=" + session + " "
 		}
-		c.logger.Printf("%s%s %s", prefix, c.binary, strings.Join(args, " "))
+		c.logger.Printf("%s%s %s", prefix, c.binary, formatArguments(args))
 	}
 	return c.commandRunner(ctx, session, args)
 }
@@ -284,6 +285,14 @@ func stopProcess(command *exec.Cmd) {
 	_ = command.Wait()
 }
 
-func IsNotFound(err error) bool {
-	return errors.Is(err, os.ErrNotExist)
+func formatArguments(arguments []string) string {
+	formatted := make([]string, len(arguments))
+	for index, argument := range arguments {
+		if strings.ContainsAny(argument, " \t\n\"'") {
+			formatted[index] = strconv.Quote(argument)
+		} else {
+			formatted[index] = argument
+		}
+	}
+	return strings.Join(formatted, " ")
 }

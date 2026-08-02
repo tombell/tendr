@@ -1,0 +1,27 @@
+root: ~/Code/example
+
+before_start:
+  - echo "starting example"
+
+after_stop:
+  - echo "stopped example"
+
+workspaces:
+  - label: application
+    root: .
+    before_start:
+      - echo "preparing application workspace"
+    after_start:
+      - echo "application workspace ready"
+    tabs:
+      - label: server
+        commands:
+          - go run ./cmd/server
+        panes:
+          - direction: right
+            ratio: 0.4
+            commands:
+              - go test ./... -count=1
+      - label: editor
+        commands:
+          - nvim .

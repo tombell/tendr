@@ -172,7 +172,7 @@ func (s DefaultShell) Run(ctx context.Context, root, command string) error {
 		shell = "/bin/sh"
 	}
 	if s.logger != nil {
-		s.logger.Printf("cd %s && %s -c %s", root, shell, command)
+		s.logger.Printf("cd %q && %s -c %q", root, shell, command)
 	}
 
 	process := exec.CommandContext(ctx, shell, "-c", command)

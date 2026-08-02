@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -27,6 +28,9 @@ Special options:
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			os.Exit(2)
+		}
 		log.SetFlags(0)
 		log.Fatal(err)
 	}
@@ -66,6 +70,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 	app := tendrcmd.New(logger, stdout)
 	switch remaining[0] {
 	case "list":
+		if len(remaining) != 1 {
+			return errors.New("usage: tendr list")
+		}
 		return app.List()
 	case "start":
 		return app.Start(remaining[1:])
