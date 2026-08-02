@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -88,12 +87,15 @@ func (c Client) StartSession(ctx context.Context, name string) error {
 
 	command := exec.Command(c.binary, "server")
 	command.Env = withSession(os.Environ(), name)
-	command.Stdout = io.Discard
-	command.Stderr = io.Discard
-	if c.logger != nil {
-		command.Stdout = c.logger.Writer()
-		command.Stderr = c.logger.Writer()
+	detachProcess(command)
+
+	devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		return fmt.Errorf("open null output for session %q: %w", name, err)
 	}
+	defer devNull.Close()
+	command.Stdout = devNull
+	command.Stderr = devNull
 	if err := command.Start(); err != nil {
 		return fmt.Errorf("start server for session %q: %w", name, err)
 	}
@@ -233,6 +235,27 @@ func (c Client) FocusWorkspace(ctx context.Context, session, workspaceID string)
 }
 
 func (c Client) DeleteSession(ctx context.Context, name string) error {
+	sessions, err := c.ListSessions(ctx)
+	if err != nil {
+		return fmt.Errorf("inspect session %q before deletion: %w", name, err)
+	}
+	var found bool
+	var running bool
+	for _, session := range sessions {
+		if session.Name == name {
+			found = true
+			running = session.Running
+			break
+		}
+	}
+	if !found {
+		return nil
+	}
+	if running {
+		if _, err := c.run(ctx, "", "session", "stop", name, "--json"); err != nil {
+			return fmt.Errorf("stop session %q before deletion: %w", name, err)
+		}
+	}
 	if _, err := c.run(ctx, "", "session", "delete", name, "--json"); err != nil {
 		return fmt.Errorf("delete session %q: %w", name, err)
 	}

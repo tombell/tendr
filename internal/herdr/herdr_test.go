@@ -84,6 +84,24 @@ func TestSessionCommandsDoNotLeakAmbientSession(t *testing.T) {
 	if !strings.Contains(log, "unset|session delete demo --json") {
 		t.Fatalf("delete was unexpectedly session-targeted:\n%s", log)
 	}
+	if !strings.Contains(log, "unset|session stop demo --json") {
+		t.Fatalf("running session was not stopped before deletion:\n%s", log)
+	}
+}
+
+func TestDeleteStoppedSessionSkipsStopCommand(t *testing.T) {
+	client, logPath := newFakeClient(t)
+	if err := client.DeleteSession(context.Background(), "saved"); err != nil {
+		t.Fatalf("DeleteSession() error = %v", err)
+	}
+
+	log := readLog(t, logPath)
+	if strings.Contains(log, "session stop saved") {
+		t.Fatalf("stopped session was stopped again:\n%s", log)
+	}
+	if !strings.Contains(log, "session delete saved --json") {
+		t.Fatalf("stopped session was not deleted:\n%s", log)
+	}
 }
 
 func TestStartSessionPollsUntilReady(t *testing.T) {
