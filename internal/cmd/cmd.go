@@ -18,8 +18,6 @@ import (
 
 const ProjectsDir = "~/.config/tendr"
 
-var ErrNotImplemented = errors.New("not implemented")
-
 type App struct {
 	logger *log.Logger
 	stdout io.Writer
@@ -79,7 +77,19 @@ func (a App) Stop(projects []string) error {
 	if len(projects) == 0 {
 		return errors.New("usage: tendr stop <project names...>")
 	}
-	return ErrNotImplemented
+
+	loaded, err := loadProjects(projects)
+	if err != nil {
+		return err
+	}
+	client := herdr.New("", a.logger)
+	lifecycle := manager.New(client, manager.NewDefaultShell(a.logger))
+	for index, cfg := range loaded {
+		if err := lifecycle.Stop(context.Background(), projects[index], cfg); err != nil {
+			return fmt.Errorf("stop project %q: %w", projects[index], err)
+		}
+	}
+	return nil
 }
 
 func loadProjects(projects []string) ([]*config.Config, error) {

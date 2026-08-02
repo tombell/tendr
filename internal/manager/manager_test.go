@@ -119,6 +119,77 @@ func TestStartStopsAtFailingProjectHook(t *testing.T) {
 	}
 }
 
+func TestStopDeletesMultipleProjectsThenRunsTheirHooks(t *testing.T) {
+	events := []string{}
+	client := &fakeHerdr{events: &events, exists: true}
+	manager := New(client, fakeShell{events: &events})
+	first := validConfig()
+	first.AfterStop = []string{"first cleanup"}
+	second := validConfig()
+	second.Root = "/second"
+	second.AfterStop = []string{"second cleanup"}
+
+	if err := manager.Stop(context.Background(), "first", first); err != nil {
+		t.Fatalf("Stop(first) error = %v", err)
+	}
+	if err := manager.Stop(context.Background(), "second", second); err != nil {
+		t.Fatalf("Stop(second) error = %v", err)
+	}
+
+	want := []string{
+		"exists first", "delete first", "shell /project first cleanup",
+		"exists second", "delete second", "shell /second second cleanup",
+	}
+	if !reflect.DeepEqual(events, want) {
+		t.Fatalf("events = %#v, want %#v", events, want)
+	}
+}
+
+func TestStopAbsentSessionIsNoOp(t *testing.T) {
+	events := []string{}
+	manager := New(&fakeHerdr{events: &events}, fakeShell{events: &events})
+	cfg := validConfig()
+	cfg.AfterStop = []string{"must not run"}
+
+	if err := manager.Stop(context.Background(), "missing", cfg); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if want := []string{"exists missing"}; !reflect.DeepEqual(events, want) {
+		t.Fatalf("events = %#v, want %#v", events, want)
+	}
+}
+
+func TestStopDoesNotRunHookAfterDeleteFailure(t *testing.T) {
+	events := []string{}
+	client := &fakeHerdr{events: &events, exists: true, failAt: "delete demo"}
+	manager := New(client, fakeShell{events: &events})
+	cfg := validConfig()
+	cfg.AfterStop = []string{"must not run"}
+
+	if err := manager.Stop(context.Background(), "demo", cfg); err == nil {
+		t.Fatal("Stop() error = nil")
+	}
+	if containsEvent(events, "must not run") {
+		t.Fatalf("after_stop ran after delete failure: %#v", events)
+	}
+}
+
+func TestStopReportsAfterStopFailureAfterDeletion(t *testing.T) {
+	events := []string{}
+	client := &fakeHerdr{events: &events, exists: true}
+	manager := New(client, fakeShell{events: &events, failAt: "shell /project cleanup"})
+	cfg := validConfig()
+	cfg.AfterStop = []string{"cleanup"}
+
+	err := manager.Stop(context.Background(), "demo", cfg)
+	if err == nil || !strings.Contains(err.Error(), "after_stop") {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if !containsEvent(events, "delete demo") {
+		t.Fatalf("session not deleted before failed hook: %#v", events)
+	}
+}
+
 func validConfig() *config.Config {
 	return &config.Config{
 		Root: "/project",
@@ -149,6 +220,10 @@ func (f *fakeHerdr) SessionExists(_ context.Context, name string) (bool, error) 
 
 func (f *fakeHerdr) StartSession(_ context.Context, name string) error {
 	return f.record("start " + name)
+}
+
+func (f *fakeHerdr) DeleteSession(_ context.Context, name string) error {
+	return f.record("delete " + name)
 }
 
 func (f *fakeHerdr) CreateWorkspace(_ context.Context, session, label, root string) (herdr.WorkspaceResult, error) {

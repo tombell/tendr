@@ -15,6 +15,7 @@ import (
 type Herdr interface {
 	SessionExists(context.Context, string) (bool, error)
 	StartSession(context.Context, string) error
+	DeleteSession(context.Context, string) error
 	CreateWorkspace(context.Context, string, string, string) (herdr.WorkspaceResult, error)
 	RenameTab(context.Context, string, string, string) error
 	CreateTab(context.Context, string, string, string, string) (herdr.TabResult, error)
@@ -60,6 +61,27 @@ func (m Manager) Start(ctx context.Context, project string, cfg *config.Config) 
 		if err := m.createWorkspace(ctx, project, &cfg.Workspaces[index]); err != nil {
 			return fmt.Errorf("create workspace %q: %w", cfg.Workspaces[index].Label, err)
 		}
+	}
+	return nil
+}
+
+func (m Manager) Stop(ctx context.Context, project string, cfg *config.Config) error {
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+
+	exists, err := m.herdr.SessionExists(ctx, project)
+	if err != nil {
+		return fmt.Errorf("check session %q: %w", project, err)
+	}
+	if !exists {
+		return nil
+	}
+	if err := m.herdr.DeleteSession(ctx, project); err != nil {
+		return err
+	}
+	if err := m.runHooks(ctx, cfg.Root, cfg.AfterStop); err != nil {
+		return fmt.Errorf("run project after_stop: %w", err)
 	}
 	return nil
 }
