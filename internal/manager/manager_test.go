@@ -21,6 +21,7 @@ func TestStartOrdersHooksTopologyCommandsAndFocus(t *testing.T) {
 	cfg := &config.Config{
 		Root:        "/project",
 		BeforeStart: []string{"project hook"},
+		AfterStart:  []string{"project ready"},
 		Workspaces: []config.Workspace{
 			{
 				Label:       "api",
@@ -63,9 +64,25 @@ func TestStartOrdersHooksTopologyCommandsAndFocus(t *testing.T) {
 		"run demo pane-tab-2 nvim .",
 		"focus demo workspace-1",
 		"shell /project/api workspace after",
+		"shell /project project ready",
 	}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("events:\n%s\nwant:\n%s", strings.Join(events, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestStartReportsProjectAfterStartFailureAfterCreation(t *testing.T) {
+	events := []string{}
+	manager := New(&fakeHerdr{events: &events}, fakeShell{events: &events, failAt: "shell /project ready"})
+	cfg := validConfig()
+	cfg.AfterStart = []string{"ready"}
+
+	err := manager.Start(context.Background(), "demo", cfg)
+	if err == nil || !strings.Contains(err.Error(), "project after_start") {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if !containsEvent(events, "workspace demo") || !containsEvent(events, "shell /project ready") {
+		t.Fatalf("after_start did not run after workspace creation: %#v", events)
 	}
 }
 

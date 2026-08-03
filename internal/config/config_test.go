@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -14,6 +15,7 @@ func TestLoadStrictValidConfigAndResolveInheritedPaths(t *testing.T) {
 	path := writeConfig(t, configDir, "demo.yml", `
 root: ~/Code/demo
 before_start: ["echo project"]
+after_start: ["echo ready"]
 after_stop: ["echo stopped"]
 workspaces:
   - label: api
@@ -41,6 +43,9 @@ workspaces:
 	wantProjectRoot := filepath.Join(home, "Code", "demo")
 	if cfg.Root != wantProjectRoot {
 		t.Errorf("Root = %q, want %q", cfg.Root, wantProjectRoot)
+	}
+	if got, want := cfg.AfterStart, []string{"echo ready"}; !slices.Equal(got, want) {
+		t.Errorf("AfterStart = %q, want %q", got, want)
 	}
 	workspace := cfg.Workspaces[0]
 	wantWorkspaceRoot := filepath.Join(wantProjectRoot, "services", "api")
@@ -88,6 +93,7 @@ sessions:
 func TestValidateReportsAllTopologyProblems(t *testing.T) {
 	ratio := 1.2
 	cfg := Config{
+		AfterStart: []string{" "},
 		Workspaces: []Workspace{
 			{
 				Label: "api",
@@ -106,6 +112,7 @@ func TestValidateReportsAllTopologyProblems(t *testing.T) {
 	}
 	for _, want := range []string{
 		"root is required",
+		"after_start[0] must not be empty",
 		"commands[0] must not be empty",
 		"direction must be right or down",
 		"ratio must be greater than 0 and less than 1",

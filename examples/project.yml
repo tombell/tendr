@@ -3,6 +3,9 @@ root: ~/Code/example
 before_start:
   - echo "starting example"
 
+after_start:
+  - echo "example ready"
+
 after_stop:
   - echo "stopped example"
 

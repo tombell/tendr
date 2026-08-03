@@ -42,6 +42,9 @@ root: ~/Code/acme
 before_start:
   - mise install
 
+after_start:
+  - echo "acme ready"
+
 after_stop:
   - echo "acme stopped"
 
@@ -78,7 +81,7 @@ Roots inherit from project → workspace → tab → pane. Relative paths resolv
 
 Each project requires a root and at least one workspace. Each workspace requires at least one tab. Workspace and tab labels must be unique among siblings. Pane directions are `right` or `down`; optional ratios must be greater than `0` and less than `1`.
 
-Project hooks run in the project root, workspace hooks in the workspace root, and commands in their tab or pane root.
+Project hooks run in the project root, workspace hooks in the workspace root, and commands in their tab or pane root. Project `after_start` hooks run once after all workspaces have started successfully.
 
 ## Development
 

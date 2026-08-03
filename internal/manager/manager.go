@@ -62,6 +62,9 @@ func (m Manager) Start(ctx context.Context, project string, cfg *config.Config) 
 			return fmt.Errorf("create workspace %q: %w", cfg.Workspaces[index].Label, err)
 		}
 	}
+	if err := m.runHooks(ctx, cfg.Root, cfg.AfterStart); err != nil {
+		return fmt.Errorf("run project after_start: %w", err)
+	}
 	return nil
 }
 
