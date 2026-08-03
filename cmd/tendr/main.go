@@ -16,6 +16,7 @@ const helpText = `usage: tendr [<flags>] <command>
 Commands:
 
   attach        Attach to a Herdr session
+  completion    Generate shell completion script
   list          List configured projects
   start         Start Herdr project sessions
   stop          Stop Herdr project sessions
@@ -70,11 +71,21 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 
 	app := tendrcmd.New(logger, stdin, stdout, stderr)
 	switch remaining[0] {
+	case "__complete":
+		if len(remaining) != 2 || remaining[1] != "sessions" {
+			return errors.New("usage: tendr __complete sessions")
+		}
+		return app.ListRunningSessions()
 	case "attach":
 		if len(remaining) != 2 {
 			return errors.New("usage: tendr attach <name>")
 		}
 		return app.Attach(remaining[1])
+	case "completion":
+		if len(remaining) != 2 {
+			return errors.New("usage: tendr completion <bash|zsh>")
+		}
+		return app.Completion(remaining[1])
 	case "list":
 		if len(remaining) != 1 {
 			return errors.New("usage: tendr list")
