@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -78,6 +79,22 @@ func (c Client) SessionExists(ctx context.Context, name string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+func (c Client) AttachSession(ctx context.Context, name string, stdin io.Reader, stdout, stderr io.Writer) error {
+	if c.logger != nil {
+		c.logger.Printf("%s session attach %s", c.binary, formatArguments([]string{name}))
+	}
+
+	command := exec.CommandContext(ctx, c.binary, "session", "attach", name)
+	command.Env = withSession(os.Environ(), "")
+	command.Stdin = stdin
+	command.Stdout = stdout
+	command.Stderr = stderr
+	if err := command.Run(); err != nil {
+		return fmt.Errorf("attach session %q: %w", name, err)
+	}
+	return nil
 }
 
 func (c Client) StartSession(ctx context.Context, name string) error {

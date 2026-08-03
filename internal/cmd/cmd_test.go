@@ -23,7 +23,7 @@ func TestListPrintsSortedYAMLProjectsOnly(t *testing.T) {
 	}
 
 	var output bytes.Buffer
-	if err := New(nil, &output).List(); err != nil {
+	if err := New(nil, nil, &output, nil).List(); err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
 	if got, want := strings.Fields(output.String()), []string{"alpha", "zeta"}; !reflect.DeepEqual(got, want) {
@@ -34,7 +34,7 @@ func TestListPrintsSortedYAMLProjectsOnly(t *testing.T) {
 func TestListMissingDirectoryIsEmpty(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	var output bytes.Buffer
-	if err := New(nil, &output).List(); err != nil {
+	if err := New(nil, nil, &output, nil).List(); err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
 	if output.Len() != 0 {

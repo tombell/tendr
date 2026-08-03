@@ -15,6 +15,7 @@ const helpText = `usage: tendr [<flags>] <command>
 
 Commands:
 
+  attach        Attach to a Herdr session
   list          List configured projects
   start         Start Herdr project sessions
   stop          Stop Herdr project sessions
@@ -27,7 +28,7 @@ Special options:
 `
 
 func main() {
-	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
+	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			os.Exit(2)
 		}
@@ -36,7 +37,7 @@ func main() {
 	}
 }
 
-func run(args []string, stdout, stderr io.Writer) error {
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("tendr", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	flags.Usage = func() { fmt.Fprint(stderr, helpText) }
@@ -67,8 +68,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 		logger = log.New(stderr, "", 0)
 	}
 
-	app := tendrcmd.New(logger, stdout)
+	app := tendrcmd.New(logger, stdin, stdout, stderr)
 	switch remaining[0] {
+	case "attach":
+		if len(remaining) != 2 {
+			return errors.New("usage: tendr attach <name>")
+		}
+		return app.Attach(remaining[1])
 	case "list":
 		if len(remaining) != 1 {
 			return errors.New("usage: tendr list")

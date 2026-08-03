@@ -1,6 +1,7 @@
 package herdr
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -89,6 +90,27 @@ func TestSessionCommandsDoNotLeakAmbientSession(t *testing.T) {
 	}
 }
 
+func TestAttachSessionUsesNamedSessionAndConnectsStandardIO(t *testing.T) {
+	client, logPath := newFakeClient(t)
+	t.Setenv(sessionEnvironment, "ambient")
+	var stdout, stderr bytes.Buffer
+
+	if err := client.AttachSession(context.Background(), "demo", strings.NewReader("hello\n"), &stdout, &stderr); err != nil {
+		t.Fatalf("AttachSession() error = %v", err)
+	}
+	if got, want := stdout.String(), "attached:hello\n"; got != want {
+		t.Fatalf("AttachSession() stdout = %q, want %q", got, want)
+	}
+	if got, want := stderr.String(), "notice:demo\n"; got != want {
+		t.Fatalf("AttachSession() stderr = %q, want %q", got, want)
+	}
+
+	log := readLog(t, logPath)
+	if !strings.Contains(log, "unset|session attach demo") {
+		t.Fatalf("attach was unexpectedly ambient-session-targeted:\n%s", log)
+	}
+}
+
 func TestDeleteStoppedSessionSkipsStopCommand(t *testing.T) {
 	client, logPath := newFakeClient(t)
 	if err := client.DeleteSession(context.Background(), "saved"); err != nil {
@@ -165,6 +187,11 @@ case "$*" in
     printf '%s\n' "$count" > "$FAKE_HERDR_STATE"
     if [ "$count" -lt 2 ]; then exit 1; fi
     printf '%s\n' '{"running":true}'
+    ;;
+  "session attach demo")
+    IFS= read -r input
+    printf 'attached:%s\n' "$input"
+    printf 'notice:demo\n' >&2
     ;;
   "workspace create --cwd /code/api --label api --no-focus")
     printf '%s\n' '{"result":{"workspace":{"workspace_id":"ws-returned"},"tab":{"tab_id":"tab-returned"},"root_pane":{"pane_id":"pane-returned"}}}'

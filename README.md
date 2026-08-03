@@ -38,12 +38,15 @@ make dev
 ```text
 tendr list
 tendr start <project names...>
+tendr attach <name>
 tendr stop <project names...>
 tendr --debug start <project names...>
 tendr --version
 ```
 
 `start` loads and strictly validates every requested project before it changes Herdr state. Existing named sessions are skipped, making repeated starts idempotent. If creation fails after a session has started, Tendr deliberately leaves that partial session in place for diagnosis.
+
+`attach` connects the current terminal to the named Herdr session. The session must already exist; use `tendr start <name>` to create it first.
 
 `stop` uses the named-session commands, not `herdr server stop`. When necessary it first runs `herdr session stop`, then `herdr session delete` to remove the named session and persisted state, and only then runs the project's `after_stop` hooks. A project whose session does not exist is a no-op.
 

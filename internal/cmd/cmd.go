@@ -20,11 +20,13 @@ const ProjectsDir = "~/.config/tendr"
 
 type App struct {
 	logger *log.Logger
+	stdin  io.Reader
 	stdout io.Writer
+	stderr io.Writer
 }
 
-func New(logger *log.Logger, stdout io.Writer) App {
-	return App{logger: logger, stdout: stdout}
+func New(logger *log.Logger, stdin io.Reader, stdout, stderr io.Writer) App {
+	return App{logger: logger, stdin: stdin, stdout: stdout, stderr: stderr}
 }
 
 func (a App) List() error {
@@ -73,6 +75,15 @@ func (a App) Start(projects []string) error {
 	return nil
 }
 
+func (a App) Attach(name string) error {
+	if !validProjectName(name) {
+		return fmt.Errorf("invalid session name %q", name)
+	}
+
+	client := herdr.New("", a.logger)
+	return client.AttachSession(context.Background(), name, a.stdin, a.stdout, a.stderr)
+}
+
 func (a App) Stop(projects []string) error {
 	if len(projects) == 0 {
 		return errors.New("usage: tendr stop <project names...>")
@@ -101,7 +112,7 @@ func loadProjects(projects []string) ([]*config.Config, error) {
 	configs := make([]*config.Config, 0, len(projects))
 	var invalid []string
 	for _, project := range projects {
-		if project == "" || filepath.Base(project) != project {
+		if !validProjectName(project) {
 			invalid = append(invalid, fmt.Sprintf("%s (invalid project name)", project))
 			continue
 		}
@@ -116,6 +127,10 @@ func loadProjects(projects []string) ([]*config.Config, error) {
 		return nil, fmt.Errorf("invalid projects: %s", strings.Join(invalid, ", "))
 	}
 	return configs, nil
+}
+
+func validProjectName(project string) bool {
+	return project != "" && filepath.Base(project) == project
 }
 
 func expandHome(path string) (string, error) {
