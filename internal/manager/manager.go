@@ -25,7 +25,7 @@ type Herdr interface {
 }
 
 type Shell interface {
-	Run(context.Context, string, string) error
+	Run(context.Context, string, string, string) error
 }
 
 type Manager struct {
@@ -50,7 +50,7 @@ func (m Manager) Start(ctx context.Context, project string, cfg *config.Config) 
 		return nil
 	}
 
-	if err := m.runHooks(ctx, cfg.Root, cfg.BeforeStart); err != nil {
+	if err := m.runHooks(ctx, project, cfg.Root, cfg.BeforeStart); err != nil {
 		return fmt.Errorf("run project before_start: %w", err)
 	}
 	if err := m.herdr.StartSession(ctx, project); err != nil {
@@ -62,7 +62,7 @@ func (m Manager) Start(ctx context.Context, project string, cfg *config.Config) 
 			return fmt.Errorf("create workspace %q: %w", cfg.Workspaces[index].Label, err)
 		}
 	}
-	if err := m.runHooks(ctx, cfg.Root, cfg.AfterStart); err != nil {
+	if err := m.runHooks(ctx, project, cfg.Root, cfg.AfterStart); err != nil {
 		return fmt.Errorf("run project after_start: %w", err)
 	}
 	return nil
@@ -80,20 +80,20 @@ func (m Manager) Stop(ctx context.Context, project string, cfg *config.Config) e
 	if !exists {
 		return nil
 	}
-	if err := m.runHooks(ctx, cfg.Root, cfg.BeforeStop); err != nil {
+	if err := m.runHooks(ctx, project, cfg.Root, cfg.BeforeStop); err != nil {
 		return fmt.Errorf("run project before_stop: %w", err)
 	}
 	if err := m.herdr.DeleteSession(ctx, project); err != nil {
 		return err
 	}
-	if err := m.runHooks(ctx, cfg.Root, cfg.AfterStop); err != nil {
+	if err := m.runHooks(ctx, project, cfg.Root, cfg.AfterStop); err != nil {
 		return fmt.Errorf("run project after_stop: %w", err)
 	}
 	return nil
 }
 
 func (m Manager) createWorkspace(ctx context.Context, session string, workspace *config.Workspace) error {
-	if err := m.runHooks(ctx, workspace.Root, workspace.BeforeStart); err != nil {
+	if err := m.runHooks(ctx, session, workspace.Root, workspace.BeforeStart); err != nil {
 		return fmt.Errorf("run before_start: %w", err)
 	}
 
@@ -123,7 +123,7 @@ func (m Manager) createWorkspace(ctx context.Context, session string, workspace 
 	if err := m.herdr.FocusWorkspace(ctx, session, created.WorkspaceID); err != nil {
 		return err
 	}
-	if err := m.runHooks(ctx, workspace.Root, workspace.AfterStart); err != nil {
+	if err := m.runHooks(ctx, session, workspace.Root, workspace.AfterStart); err != nil {
 		return fmt.Errorf("run after_start: %w", err)
 	}
 	return nil
@@ -155,9 +155,9 @@ func (m Manager) runPaneCommands(ctx context.Context, session, paneID string, co
 	return nil
 }
 
-func (m Manager) runHooks(ctx context.Context, root string, hooks []string) error {
+func (m Manager) runHooks(ctx context.Context, session, root string, hooks []string) error {
 	for index, hook := range hooks {
-		if err := m.shell.Run(ctx, root, hook); err != nil {
+		if err := m.shell.Run(ctx, session, root, hook); err != nil {
 			return fmt.Errorf("hook %d: %w", index+1, err)
 		}
 	}
@@ -172,17 +172,18 @@ func NewDefaultShell(logger *log.Logger) DefaultShell {
 	return DefaultShell{logger: logger}
 }
 
-func (s DefaultShell) Run(ctx context.Context, root, command string) error {
+func (s DefaultShell) Run(ctx context.Context, session, root, command string) error {
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		shell = "/bin/sh"
 	}
 	if s.logger != nil {
-		s.logger.Printf("cd %q && %s -c %q", root, shell, command)
+		s.logger.Printf("cd %q && HERDR_SESSION=%q %s -c %q", root, session, shell, command)
 	}
 
 	process := exec.CommandContext(ctx, shell, "-c", command)
 	process.Dir = root
+	process.Env = withEnvironmentVariable(os.Environ(), "HERDR_SESSION", session)
 	output, err := process.CombinedOutput()
 	if err != nil {
 		message := strings.TrimSpace(string(output))
@@ -192,4 +193,15 @@ func (s DefaultShell) Run(ctx context.Context, root, command string) error {
 		return err
 	}
 	return nil
+}
+
+func withEnvironmentVariable(environment []string, name, value string) []string {
+	result := make([]string, 0, len(environment)+1)
+	prefix := name + "="
+	for _, variable := range environment {
+		if !strings.HasPrefix(variable, prefix) {
+			result = append(result, variable)
+		}
+	}
+	return append(result, prefix+value)
 }

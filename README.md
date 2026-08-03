@@ -84,7 +84,7 @@ Roots inherit from project → workspace → tab → pane. Relative paths resolv
 
 Each project requires a root and at least one workspace. Each workspace requires at least one tab. Workspace and tab labels must be unique among siblings. Pane directions are `right` or `down`; optional ratios must be greater than `0` and less than `1`.
 
-Project hooks run in the project root, workspace hooks in the workspace root, and commands in their tab or pane root. Project `after_start` hooks run once after all workspaces have started successfully. Project `before_stop` hooks must succeed before the session is deleted.
+Project hooks run in the project root, workspace hooks in the workspace root, and commands in their tab or pane root. Tendr sets `HERDR_SESSION` to the project's session name for every lifecycle hook, overriding any inherited value. Project `after_start` hooks run once after all workspaces have started successfully. Project `before_stop` hooks must succeed before the session is deleted.
 
 ## Development
 

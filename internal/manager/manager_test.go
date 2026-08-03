@@ -14,8 +14,9 @@ import (
 
 func TestStartOrdersHooksTopologyCommandsAndFocus(t *testing.T) {
 	events := []string{}
+	sessions := []string{}
 	client := &fakeHerdr{events: &events}
-	shell := fakeShell{events: &events}
+	shell := fakeShell{events: &events, sessions: &sessions}
 	manager := New(client, shell)
 	ratio := 0.35
 	cfg := &config.Config{
@@ -68,6 +69,9 @@ func TestStartOrdersHooksTopologyCommandsAndFocus(t *testing.T) {
 	}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("events:\n%s\nwant:\n%s", strings.Join(events, "\n"), strings.Join(want, "\n"))
+	}
+	if want := []string{"demo", "demo", "demo", "demo"}; !reflect.DeepEqual(sessions, want) {
+		t.Fatalf("hook sessions = %#v, want %#v", sessions, want)
 	}
 }
 
@@ -138,8 +142,9 @@ func TestStartStopsAtFailingProjectHook(t *testing.T) {
 
 func TestStopDeletesMultipleProjectsThenRunsTheirHooks(t *testing.T) {
 	events := []string{}
+	sessions := []string{}
 	client := &fakeHerdr{events: &events, exists: true}
-	manager := New(client, fakeShell{events: &events})
+	manager := New(client, fakeShell{events: &events, sessions: &sessions})
 	first := validConfig()
 	first.BeforeStop = []string{"first prepare"}
 	first.AfterStop = []string{"first cleanup"}
@@ -161,6 +166,19 @@ func TestStopDeletesMultipleProjectsThenRunsTheirHooks(t *testing.T) {
 	}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("events = %#v, want %#v", events, want)
+	}
+	if want := []string{"first", "first", "second", "second"}; !reflect.DeepEqual(sessions, want) {
+		t.Fatalf("hook sessions = %#v, want %#v", sessions, want)
+	}
+}
+
+func TestDefaultShellOverridesAmbientHerdrSession(t *testing.T) {
+	t.Setenv("SHELL", "/bin/sh")
+	t.Setenv("HERDR_SESSION", "ambient")
+
+	shell := NewDefaultShell(nil)
+	if err := shell.Run(context.Background(), "demo", t.TempDir(), `[ "$HERDR_SESSION" = "demo" ]`); err != nil {
+		t.Fatalf("Run() error = %v", err)
 	}
 }
 
@@ -295,11 +313,15 @@ func (f *fakeHerdr) FocusWorkspace(_ context.Context, session, workspaceID strin
 }
 
 type fakeShell struct {
-	events *[]string
-	failAt string
+	events   *[]string
+	sessions *[]string
+	failAt   string
 }
 
-func (f fakeShell) Run(_ context.Context, root, command string) error {
+func (f fakeShell) Run(_ context.Context, session, root, command string) error {
+	if f.sessions != nil {
+		*f.sessions = append(*f.sessions, session)
+	}
 	event := fmt.Sprintf("shell %s %s", root, command)
 	*f.events = append(*f.events, event)
 	if event == f.failAt {
