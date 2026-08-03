@@ -1,27 +1,10 @@
 # Tendr
 
-Tendr is an opinionated Go CLI for declaratively managing local [Herdr](https://herdr.dev/) projects. Each `~/.config/tendr/<project>.yml` file owns one named Herdr session. Starting a project creates its workspaces, tabs, pane topology, commands, and lifecycle hooks; stopping it deletes the named session and its persisted state.
-
-Tendr follows the shape and fresh-restart workflow of [tm](https://github.com/tombell/tm), translated into Herdr's native concepts and vocabulary:
-
-| Tendr | Herdr |
-| --- | --- |
-| project/config file | named session |
-| workspace | workspace |
-| tab | tab |
-| pane | pane |
-
-Tendr only manages local sessions in v1. It selects every session-scoped CLI call with `HERDR_SESSION` and uses IDs returned by Herdr's JSON responses rather than deriving IDs.
-
-## Tendr and herdr-spreader
-
-Tendr owns a named session's lifecycle: it starts a headless server, creates a project only when that named session does not already exist, runs project/workspace hooks, and deletes the whole named session on `tendr stop`. One command can validate and manage several project files.
-
-[herdr-spreader](https://github.com/yuk1ty/herdr-spreader) is a Herdr plugin or standalone layout applicator for a server that is already running. It has richer layout-application features such as scoped environment variables, output waits, explicit pane focus, nested split chains, and dry runs. Use herdr-spreader when you want to apply layouts inside an existing session; use Tendr when the config file should own a separate named session and its start/stop lifecycle.
+Tendr is a Go CLI for declaratively managing local [Herdr](https://herdr.dev/) projects. Each `~/.config/tendr/<name>.yml` file defines one named Herdr session, including its workspaces, tabs, panes, commands, and lifecycle hooks.
 
 ## Install
 
-Herdr must be installed and available as `herdr` on `PATH`.
+Install Herdr and make sure `herdr` is available on `PATH`, then install Tendr:
 
 ```sh
 go install github.com/tombell/tendr/cmd/tendr@latest
@@ -37,22 +20,21 @@ make dev
 
 ```text
 tendr list
-tendr start <project names...>
+tendr start <names...>
 tendr attach <name>
-tendr stop <project names...>
-tendr --debug start <project names...>
+tendr stop <names...>
+tendr --debug start <names...>
 tendr --version
 ```
 
-`start` loads and strictly validates every requested project before it changes Herdr state. Existing named sessions are skipped, making repeated starts idempotent. If creation fails after a session has started, Tendr deliberately leaves that partial session in place for diagnosis.
-
-`attach` connects the current terminal to the named Herdr session. The session must already exist; use `tendr start <name>` to create it first.
-
-`stop` uses the named-session commands, not `herdr server stop`. When necessary it first runs `herdr session stop`, then `herdr session delete` to remove the named session and persisted state, and only then runs the project's `after_stop` hooks. A project whose session does not exist is a no-op.
+- `list` prints the configured project names.
+- `start` validates every requested config, then creates any sessions that do not already exist.
+- `attach` connects the current terminal to an existing session.
+- `stop` deletes each session and its persisted state, then runs its `after_stop` hooks.
 
 ## Configuration
 
-Create `~/.config/tendr/<project>.yml`. The filename without `.yml` is the named Herdr session. Tendr rejects unknown fields and tm compatibility aliases.
+Create `~/.config/tendr/<name>.yml`. The filename without `.yml` becomes the Herdr session name.
 
 ```yaml
 root: ~/Code/acme
@@ -92,30 +74,11 @@ workspaces:
 
 See [`examples/project.yml`](examples/project.yml) for a standalone example.
 
-Paths resolve from parent to child: project `root` → workspace `root` → tab `root` → pane `root`. An omitted child root inherits its parent; an absolute path replaces it; `~` expands to the current user's home directory. The project root, at least one workspace, and at least one tab per workspace are required. Labels must be unique among sibling workspaces or tabs. Pane `direction` is `right` or `down`; an optional `ratio` must be greater than `0` and less than `1`.
+Roots inherit from project → workspace → tab → pane. Relative paths resolve from the parent root, absolute paths replace it, and `~` expands to the current user's home directory.
 
-Project hooks run in the project root. Workspace hooks run in the workspace root. Tab commands run in the tab's root pane; each configured pane is split from that root pane and receives its own commands through `herdr pane run`.
+Each project requires a root and at least one workspace. Each workspace requires at least one tab. Workspace and tab labels must be unique among siblings. Pane directions are `right` or `down`; optional ratios must be greater than `0` and less than `1`.
 
-## Migrating from tm
-
-Tendr does not read tm configs. Translate them explicitly:
-
-| tm | Tendr | Notes |
-| --- | --- | --- |
-| config filename | config filename | Becomes the Herdr named session. |
-| project `root` | project `root` | Same inherited base-path role. |
-| project `before_start` | project `before_start` | Runs before the named server starts. |
-| project `after_stop` | project `after_stop` | Runs after the named session is deleted. |
-| `sessions[]` | `workspaces[]` | A tm session becomes a Herdr workspace. |
-| session `name` | workspace `label` | Herdr-native label vocabulary. |
-| session `root` | workspace `root` | Relative to project root. |
-| session `before_start` / `after_start` | workspace `before_start` / `after_start` | Same lifecycle points. |
-| `windows[]` | `tabs[]` | A tm window becomes a Herdr tab. |
-| window `name` | tab `label` | Herdr-native label vocabulary. |
-| window `commands` | tab `commands` | Runs in the returned root pane. |
-| window `layout` | removed | Choose explicit pane directions and ratios instead. |
-| pane `type` | pane `direction` | Choose Herdr `right` or `down`; there is no horizontal/vertical alias. |
-| pane `root` / `commands` | pane `root` / `commands` | Uses the returned split-pane ID. |
+Project hooks run in the project root, workspace hooks in the workspace root, and commands in their tab or pane root.
 
 ## Development
 
@@ -126,4 +89,4 @@ go vet ./...
 make prod
 ```
 
-`make` injects `VERSION` and the current commit into the binary. `make prod` builds Darwin and Linux binaries for amd64 and arm64.
+`make prod` builds Darwin and Linux binaries for amd64 and arm64.
