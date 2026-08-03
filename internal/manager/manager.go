@@ -80,6 +80,9 @@ func (m Manager) Stop(ctx context.Context, project string, cfg *config.Config) e
 	if !exists {
 		return nil
 	}
+	if err := m.runHooks(ctx, cfg.Root, cfg.BeforeStop); err != nil {
+		return fmt.Errorf("run project before_stop: %w", err)
+	}
 	if err := m.herdr.DeleteSession(ctx, project); err != nil {
 		return err
 	}

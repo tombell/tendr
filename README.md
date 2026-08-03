@@ -30,7 +30,7 @@ tendr --version
 - `list` prints the configured project names.
 - `start` validates every requested config, then creates any sessions that do not already exist.
 - `attach` connects the current terminal to an existing session.
-- `stop` deletes each session and its persisted state, then runs its `after_stop` hooks.
+- `stop` runs each session's `before_stop` hooks, deletes the session and its persisted state, then runs its `after_stop` hooks.
 
 ## Configuration
 
@@ -44,6 +44,9 @@ before_start:
 
 after_start:
   - echo "acme ready"
+
+before_stop:
+  - echo "stopping acme"
 
 after_stop:
   - echo "acme stopped"
@@ -81,7 +84,7 @@ Roots inherit from project → workspace → tab → pane. Relative paths resolv
 
 Each project requires a root and at least one workspace. Each workspace requires at least one tab. Workspace and tab labels must be unique among siblings. Pane directions are `right` or `down`; optional ratios must be greater than `0` and less than `1`.
 
-Project hooks run in the project root, workspace hooks in the workspace root, and commands in their tab or pane root. Project `after_start` hooks run once after all workspaces have started successfully.
+Project hooks run in the project root, workspace hooks in the workspace root, and commands in their tab or pane root. Project `after_start` hooks run once after all workspaces have started successfully. Project `before_stop` hooks must succeed before the session is deleted.
 
 ## Development
 

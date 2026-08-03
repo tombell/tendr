@@ -42,6 +42,7 @@ type Config struct {
 	Root        string      `yaml:"root"`
 	BeforeStart []string    `yaml:"before_start,omitempty"`
 	AfterStart  []string    `yaml:"after_start,omitempty"`
+	BeforeStop  []string    `yaml:"before_stop,omitempty"`
 	AfterStop   []string    `yaml:"after_stop,omitempty"`
 	Workspaces  []Workspace `yaml:"workspaces"`
 }
@@ -89,6 +90,7 @@ func (c Config) Validate() error {
 	}
 	validateCommands(&problems, "before_start", c.BeforeStart)
 	validateCommands(&problems, "after_start", c.AfterStart)
+	validateCommands(&problems, "before_stop", c.BeforeStop)
 	validateCommands(&problems, "after_stop", c.AfterStop)
 	if len(c.Workspaces) == 0 {
 		problems = append(problems, "workspaces must contain at least one workspace")

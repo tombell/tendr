@@ -141,9 +141,11 @@ func TestStopDeletesMultipleProjectsThenRunsTheirHooks(t *testing.T) {
 	client := &fakeHerdr{events: &events, exists: true}
 	manager := New(client, fakeShell{events: &events})
 	first := validConfig()
+	first.BeforeStop = []string{"first prepare"}
 	first.AfterStop = []string{"first cleanup"}
 	second := validConfig()
 	second.Root = "/second"
+	second.BeforeStop = []string{"second prepare"}
 	second.AfterStop = []string{"second cleanup"}
 
 	if err := manager.Stop(context.Background(), "first", first); err != nil {
@@ -154,8 +156,8 @@ func TestStopDeletesMultipleProjectsThenRunsTheirHooks(t *testing.T) {
 	}
 
 	want := []string{
-		"exists first", "delete first", "shell /project first cleanup",
-		"exists second", "delete second", "shell /second second cleanup",
+		"exists first", "shell /project first prepare", "delete first", "shell /project first cleanup",
+		"exists second", "shell /second second prepare", "delete second", "shell /second second cleanup",
 	}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("events = %#v, want %#v", events, want)
@@ -166,6 +168,7 @@ func TestStopAbsentSessionIsNoOp(t *testing.T) {
 	events := []string{}
 	manager := New(&fakeHerdr{events: &events}, fakeShell{events: &events})
 	cfg := validConfig()
+	cfg.BeforeStop = []string{"must not run"}
 	cfg.AfterStop = []string{"must not run"}
 
 	if err := manager.Stop(context.Background(), "missing", cfg); err != nil {
@@ -173,6 +176,22 @@ func TestStopAbsentSessionIsNoOp(t *testing.T) {
 	}
 	if want := []string{"exists missing"}; !reflect.DeepEqual(events, want) {
 		t.Fatalf("events = %#v, want %#v", events, want)
+	}
+}
+
+func TestStopPreservesSessionAfterBeforeStopFailure(t *testing.T) {
+	events := []string{}
+	client := &fakeHerdr{events: &events, exists: true}
+	manager := New(client, fakeShell{events: &events, failAt: "shell /project prepare"})
+	cfg := validConfig()
+	cfg.BeforeStop = []string{"prepare"}
+
+	err := manager.Stop(context.Background(), "demo", cfg)
+	if err == nil || !strings.Contains(err.Error(), "before_stop") {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	if containsEvent(events, "delete demo") {
+		t.Fatalf("session deleted after before_stop failure: %#v", events)
 	}
 }
 

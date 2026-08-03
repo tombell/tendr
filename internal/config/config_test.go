@@ -16,6 +16,7 @@ func TestLoadStrictValidConfigAndResolveInheritedPaths(t *testing.T) {
 root: ~/Code/demo
 before_start: ["echo project"]
 after_start: ["echo ready"]
+before_stop: ["echo stopping"]
 after_stop: ["echo stopped"]
 workspaces:
   - label: api
@@ -46,6 +47,9 @@ workspaces:
 	}
 	if got, want := cfg.AfterStart, []string{"echo ready"}; !slices.Equal(got, want) {
 		t.Errorf("AfterStart = %q, want %q", got, want)
+	}
+	if got, want := cfg.BeforeStop, []string{"echo stopping"}; !slices.Equal(got, want) {
+		t.Errorf("BeforeStop = %q, want %q", got, want)
 	}
 	workspace := cfg.Workspaces[0]
 	wantWorkspaceRoot := filepath.Join(wantProjectRoot, "services", "api")
@@ -94,6 +98,7 @@ func TestValidateReportsAllTopologyProblems(t *testing.T) {
 	ratio := 1.2
 	cfg := Config{
 		AfterStart: []string{" "},
+		BeforeStop: []string{""},
 		Workspaces: []Workspace{
 			{
 				Label: "api",
@@ -113,6 +118,7 @@ func TestValidateReportsAllTopologyProblems(t *testing.T) {
 	for _, want := range []string{
 		"root is required",
 		"after_start[0] must not be empty",
+		"before_stop[0] must not be empty",
 		"commands[0] must not be empty",
 		"direction must be right or down",
 		"ratio must be greater than 0 and less than 1",

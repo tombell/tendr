@@ -6,6 +6,9 @@ before_start:
 after_start:
   - echo "example ready"
 
+before_stop:
+  - echo "stopping example"
+
 after_stop:
   - echo "stopped example"
 
