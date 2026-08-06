@@ -92,7 +92,14 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		}
 		return app.List()
 	case "start":
-		return app.Start(remaining[1:])
+		startFlags := flag.NewFlagSet("tendr start", flag.ContinueOnError)
+		startFlags.SetOutput(stderr)
+		var attach bool
+		startFlags.BoolVar(&attach, "attach", false, "attach to the session after it starts")
+		if err := startFlags.Parse(remaining[1:]); err != nil {
+			return err
+		}
+		return app.Start(startFlags.Args(), attach)
 	case "stop":
 		return app.Stop(remaining[1:])
 	default:

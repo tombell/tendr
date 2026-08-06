@@ -129,6 +129,97 @@ esac
 	}
 }
 
+func TestRunStartAttachConnectsAfterStartupFinishes(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	projectsDir := filepath.Join(home, ".config", "tendr")
+	if err := os.MkdirAll(projectsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	config := `root: .
+after_start:
+  - printf 'after-start\n' >> "$FAKE_HERDR_LOG"
+workspaces:
+  - label: main
+    tabs:
+      - label: shell
+`
+	if err := os.WriteFile(filepath.Join(projectsDir, "demo.yml"), []byte(config), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	script := filepath.Join(dir, "herdr")
+	logPath := filepath.Join(dir, "commands.log")
+	statePath := filepath.Join(dir, "running")
+	contents := `#!/bin/sh
+printf '%s|%s\n' "${HERDR_SESSION-unset}" "$*" >> "$FAKE_HERDR_LOG"
+case "$*" in
+  "session list --json")
+    if [ -f "$FAKE_HERDR_STATE" ]; then
+      printf '%s\n' '{"sessions":[{"name":"demo","running":true}]}'
+    else
+      printf '%s\n' '{"sessions":[]}'
+    fi
+    ;;
+  "server")
+    : > "$FAKE_HERDR_STATE"
+    ;;
+  "status server --json")
+    printf '%s\n' '{"running":true}'
+    ;;
+  workspace\ create*)
+    printf '%s\n' '{"result":{"workspace":{"workspace_id":"workspace-1"},"tab":{"tab_id":"tab-1"},"root_pane":{"pane_id":"pane-1"}}}'
+    ;;
+  "session attach demo")
+    IFS= read -r input
+    printf 'attached:%s\n' "$input"
+    printf 'notice:demo\n' >&2
+    ;;
+  *)
+    printf '%s\n' '{"result":{"type":"ok"}}'
+    ;;
+esac
+`
+	if err := os.WriteFile(script, []byte(contents), 0o755); err != nil {
+		t.Fatalf("WriteFile(fake herdr) error = %v", err)
+	}
+	t.Setenv("FAKE_HERDR_LOG", logPath)
+	t.Setenv("FAKE_HERDR_STATE", statePath)
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"start", "--attach", "demo"}, strings.NewReader("hello\n"), &stdout, &stderr); err != nil {
+		t.Fatalf("run(start --attach demo) error = %v", err)
+	}
+	if got, want := stdout.String(), "attached:hello\n"; got != want {
+		t.Fatalf("run(start --attach demo) stdout = %q, want %q", got, want)
+	}
+	if got, want := stderr.String(), "notice:demo\n"; got != want {
+		t.Fatalf("run(start --attach demo) stderr = %q, want %q", got, want)
+	}
+
+	log, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commands := string(log)
+	focus := strings.Index(commands, "workspace focus workspace-1")
+	afterStart := strings.Index(commands, "after-start")
+	attach := strings.Index(commands, "session attach demo")
+	if focus < 0 || afterStart < focus || attach < afterStart {
+		t.Fatalf("attach did not happen after startup finished:\n%s", commands)
+	}
+}
+
+func TestRunStartAttachRejectsMultipleProjects(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	err := run([]string{"start", "--attach", "one", "two"}, nil, &stdout, &stderr)
+	if err == nil || err.Error() != "--attach requires exactly one project" {
+		t.Fatalf("run(start --attach one two) error = %v", err)
+	}
+}
+
 func TestRunAttachRejectsMissingSession(t *testing.T) {
 	dir := t.TempDir()
 	script := filepath.Join(dir, "herdr")

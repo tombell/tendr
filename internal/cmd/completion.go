@@ -52,7 +52,26 @@ _tendr() {
         COMPREPLY=( $(compgen -W 'bash zsh' -- "$current") )
       fi
       ;;
-    start|stop)
+    start)
+      candidates=(--attach)
+      while IFS= read -r candidate; do
+        [[ -n "$candidate" ]] && candidates+=("$candidate")
+      done < <(tendr list 2>/dev/null)
+      for candidate in "${candidates[@]}"; do
+        [[ "$candidate" == "$current"* ]] || continue
+        used=false
+        for ((i = command_index + 1; i < COMP_CWORD; i++)); do
+          if [[ "${COMP_WORDS[i]}" == "$candidate" ]]; then
+            used=true
+            break
+          fi
+        done
+        if [[ "$used" == false ]]; then
+          COMPREPLY[${#COMPREPLY[@]}]="$candidate"
+        fi
+      done
+      ;;
+    stop)
       while IFS= read -r candidate; do
         [[ -n "$candidate" && "$candidate" == "$current"* ]] || continue
         used=false
@@ -115,7 +134,23 @@ _tendr() {
         compadd -- bash zsh
       fi
       ;;
-    start|stop)
+    start)
+      projects=(--attach "${(@f)$(tendr list 2>/dev/null)}")
+      candidates=()
+      for candidate in "${projects[@]}"; do
+        [[ -n "$candidate" ]] || continue
+        used=0
+        for ((i = command_index + 1; i < CURRENT; i++)); do
+          if [[ "${words[i]}" == "$candidate" ]]; then
+            used=1
+            break
+          fi
+        done
+        (( used == 0 )) && candidates+=("$candidate")
+      done
+      compadd -- "${candidates[@]}"
+      ;;
+    stop)
       projects=("${(@f)$(tendr list 2>/dev/null)}")
       candidates=()
       for candidate in "${projects[@]}"; do

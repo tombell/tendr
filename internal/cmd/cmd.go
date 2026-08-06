@@ -56,9 +56,12 @@ func (a App) List() error {
 	return nil
 }
 
-func (a App) Start(projects []string) error {
+func (a App) Start(projects []string, attach bool) error {
 	if len(projects) == 0 {
-		return errors.New("usage: tendr start <project names...>")
+		return errors.New("usage: tendr start [--attach] <project names...>")
+	}
+	if attach && len(projects) != 1 {
+		return errors.New("--attach requires exactly one project")
 	}
 
 	loaded, err := loadProjects(projects)
@@ -70,6 +73,11 @@ func (a App) Start(projects []string) error {
 	for index, cfg := range loaded {
 		if err := lifecycle.Start(context.Background(), projects[index], cfg); err != nil {
 			return fmt.Errorf("start project %q: %w", projects[index], err)
+		}
+	}
+	if attach {
+		if err := client.AttachSession(context.Background(), projects[0], a.stdin, a.stdout, a.stderr); err != nil {
+			return fmt.Errorf("attach project %q: %w", projects[0], err)
 		}
 	}
 	return nil

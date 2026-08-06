@@ -21,6 +21,7 @@ make dev
 ```text
 tendr list
 tendr start <names...>
+tendr start --attach <name>
 tendr attach <name>
 tendr stop <names...>
 tendr completion <bash|zsh>
@@ -29,13 +30,13 @@ tendr --version
 ```
 
 - `list` prints the configured project names.
-- `start` validates every requested config, then creates any sessions that do not already exist.
+- `start` validates every requested config, then creates any sessions that do not already exist. Pass `--attach` with one project to connect the current terminal after startup finishes.
 - `attach` connects the current terminal to an existing session.
 - `stop` runs each session's `before_stop` hooks, deletes the session and its persisted state, then runs its `after_stop` hooks.
 
 ## Shell completion
 
-Tendr can generate completion scripts for Bash and Zsh. The scripts complete commands and flags, configured projects for `start` and `stop`, and currently running Herdr sessions for `attach`.
+Tendr can generate completion scripts for Bash and Zsh. The scripts complete commands and flags (including `start --attach`), configured projects for `start` and `stop`, and currently running Herdr sessions for `attach`.
 
 For Bash, add this to `~/.bashrc`:
 
