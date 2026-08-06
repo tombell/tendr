@@ -126,7 +126,7 @@ func TestDeleteStoppedSessionSkipsStopCommand(t *testing.T) {
 	}
 }
 
-func TestStartSessionPollsUntilReady(t *testing.T) {
+func TestStartSessionPollsUntilStatusReportsRunning(t *testing.T) {
 	client, logPath := newFakeClient(t)
 	client.readyTimeout = time.Second
 	client.pollInterval = time.Millisecond
@@ -136,7 +136,7 @@ func TestStartSessionPollsUntilReady(t *testing.T) {
 	}
 
 	log := readLog(t, logPath)
-	if !strings.Contains(log, "new-session|server") || strings.Count(log, "new-session|status server") < 2 {
+	if !strings.Contains(log, "new-session|server") || strings.Count(log, "new-session|status server --json") < 2 {
 		t.Fatalf("server was not started and polled:\n%s", log)
 	}
 }
@@ -180,14 +180,17 @@ case "$*" in
   "server")
     exit 0
     ;;
-  "status server")
-    count=0
-    if [ -f "$FAKE_HERDR_STATE" ]; then count=$(sed -n '1p' "$FAKE_HERDR_STATE"); fi
-    count=$((count + 1))
-    printf '%s\n' "$count" > "$FAKE_HERDR_STATE"
-    if [ "$count" -lt 2 ]; then exit 1; fi
-    printf '%s\n' '{"running":true}'
-    ;;
+  "status server --json")
+	count=0
+	if [ -f "$FAKE_HERDR_STATE" ]; then count=$(sed -n '1p' "$FAKE_HERDR_STATE"); fi
+	count=$((count + 1))
+	printf '%s\n' "$count" > "$FAKE_HERDR_STATE"
+	if [ "$count" -lt 2 ]; then
+	  printf '%s\n' '{"status":"not_running","running":false}'
+	  exit 0
+	fi
+	printf '%s\n' '{"status":"running","running":true}'
+	;;
   "session attach demo")
     IFS= read -r input
     printf 'attached:%s\n' "$input"

@@ -124,13 +124,16 @@ func (c Client) StartSession(ctx context.Context, name string) error {
 
 	var lastErr error
 	for {
-		if _, err := c.commandRunner(ctx, name, []string{"status", "server"}); err == nil {
+		running, err := c.serverRunning(ctx, name)
+		if err != nil {
+			lastErr = err
+		} else if running {
 			if err := command.Process.Release(); err != nil {
 				return fmt.Errorf("release server process for session %q: %w", name, err)
 			}
 			return nil
 		} else {
-			lastErr = err
+			lastErr = fmt.Errorf("server is not running")
 		}
 
 		select {
@@ -143,6 +146,21 @@ func (c Client) StartSession(ctx context.Context, name string) error {
 		case <-ticker.C:
 		}
 	}
+}
+
+func (c Client) serverRunning(ctx context.Context, session string) (bool, error) {
+	output, err := c.commandRunner(ctx, session, []string{"status", "server", "--json"})
+	if err != nil {
+		return false, err
+	}
+
+	var status struct {
+		Running bool `json:"running"`
+	}
+	if err := json.Unmarshal(output, &status); err != nil {
+		return false, fmt.Errorf("parse server status: %w", err)
+	}
+	return status.Running, nil
 }
 
 func (c Client) CreateWorkspace(ctx context.Context, session, label, root string) (WorkspaceResult, error) {
