@@ -82,6 +82,25 @@ func (c Client) SessionExists(ctx context.Context, name string) (bool, error) {
 }
 
 func (c Client) AttachSession(ctx context.Context, name string, stdin io.Reader, stdout, stderr io.Writer) error {
+	sessions, err := c.ListSessions(ctx)
+	if err != nil {
+		return fmt.Errorf("check session %q before attaching: %w", name, err)
+	}
+
+	found := false
+	for _, session := range sessions {
+		if session.Name == name {
+			found = true
+			if session.Running {
+				break
+			}
+			return fmt.Errorf("session %q is not running", name)
+		}
+	}
+	if !found {
+		return fmt.Errorf("session %q does not exist", name)
+	}
+
 	if c.logger != nil {
 		c.logger.Printf("%s session attach %s", c.binary, formatArguments([]string{name}))
 	}

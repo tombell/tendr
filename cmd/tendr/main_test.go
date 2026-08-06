@@ -97,13 +97,20 @@ func TestRunAttachConnectsStandardIO(t *testing.T) {
 	dir := t.TempDir()
 	script := filepath.Join(dir, "herdr")
 	contents := `#!/bin/sh
-if [ "$*" != "session attach demo" ]; then
-  printf 'unexpected arguments: %s\n' "$*" >&2
-  exit 1
-fi
-IFS= read -r input
-printf 'attached:%s\n' "$input"
-printf 'notice:demo\n' >&2
+case "$*" in
+  "session list --json")
+    printf '%s\n' '{"sessions":[{"name":"demo","running":true}]}'
+    ;;
+  "session attach demo")
+    IFS= read -r input
+    printf 'attached:%s\n' "$input"
+    printf 'notice:demo\n' >&2
+    ;;
+  *)
+    printf 'unexpected arguments: %s\n' "$*" >&2
+    exit 1
+    ;;
+esac
 `
 	if err := os.WriteFile(script, []byte(contents), 0o755); err != nil {
 		t.Fatalf("WriteFile(fake herdr) error = %v", err)
@@ -119,6 +126,28 @@ printf 'notice:demo\n' >&2
 	}
 	if got, want := stderr.String(), "notice:demo\n"; got != want {
 		t.Fatalf("run() stderr = %q, want %q", got, want)
+	}
+}
+
+func TestRunAttachRejectsMissingSession(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "herdr")
+	contents := `#!/bin/sh
+if [ "$*" != "session list --json" ]; then
+  printf 'unexpected arguments: %s\n' "$*" >&2
+  exit 1
+fi
+printf '%s\n' '{"sessions":[]}'
+`
+	if err := os.WriteFile(script, []byte(contents), 0o755); err != nil {
+		t.Fatalf("WriteFile(fake herdr) error = %v", err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	var stdout, stderr bytes.Buffer
+	err := run([]string{"attach", "missing"}, nil, &stdout, &stderr)
+	if err == nil || err.Error() != `session "missing" does not exist` {
+		t.Fatalf("run(attach missing) error = %v", err)
 	}
 }
 

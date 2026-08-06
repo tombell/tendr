@@ -111,6 +111,29 @@ func TestAttachSessionUsesNamedSessionAndConnectsStandardIO(t *testing.T) {
 	}
 }
 
+func TestAttachSessionRejectsSessionsThatAreNotRunning(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		want string
+	}{
+		{name: "missing", want: `session "missing" does not exist`},
+		{name: "saved", want: `session "saved" is not running`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			client, logPath := newFakeClient(t)
+			err := client.AttachSession(context.Background(), test.name, nil, nil, nil)
+			if err == nil || err.Error() != test.want {
+				t.Fatalf("AttachSession(%q) error = %v, want %q", test.name, err, test.want)
+			}
+
+			log := readLog(t, logPath)
+			if strings.Contains(log, "session attach") {
+				t.Fatalf("AttachSession(%q) invoked attach:\n%s", test.name, log)
+			}
+		})
+	}
+}
+
 func TestDeleteStoppedSessionSkipsStopCommand(t *testing.T) {
 	client, logPath := newFakeClient(t)
 	if err := client.DeleteSession(context.Background(), "saved"); err != nil {
