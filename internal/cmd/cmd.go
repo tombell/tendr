@@ -89,14 +89,15 @@ func (a App) Start(projects []string, attach bool) error {
 	if err != nil {
 		return err
 	}
-	client := herdr.New("", a.logger)
-	lifecycle := manager.New(client, manager.NewDefaultShell(a.logger))
 	for index, cfg := range loaded {
+		client, shell := a.projectDependencies(cfg)
+		lifecycle := manager.New(client, shell)
 		if err := lifecycle.Start(context.Background(), projects[index], cfg); err != nil {
 			return fmt.Errorf("start project %q: %w", projects[index], err)
 		}
 	}
 	if attach {
+		client, _ := a.projectDependencies(loaded[0])
 		if err := client.AttachSession(context.Background(), projects[0], a.stdin, a.stdout, a.stderr); err != nil {
 			return fmt.Errorf("attach project %q: %w", projects[0], err)
 		}
@@ -110,6 +111,9 @@ func (a App) Attach(name string) error {
 	}
 
 	client := herdr.New("", a.logger)
+	if loaded, err := loadProjects([]string{name}); err == nil {
+		client, _ = a.projectDependencies(loaded[0])
+	}
 	return client.AttachSession(context.Background(), name, a.stdin, a.stdout, a.stderr)
 }
 
@@ -122,14 +126,21 @@ func (a App) Stop(projects []string) error {
 	if err != nil {
 		return err
 	}
-	client := herdr.New("", a.logger)
-	lifecycle := manager.New(client, manager.NewDefaultShell(a.logger))
 	for index, cfg := range loaded {
+		client, shell := a.projectDependencies(cfg)
+		lifecycle := manager.New(client, shell)
 		if err := lifecycle.Stop(context.Background(), projects[index], cfg); err != nil {
 			return fmt.Errorf("stop project %q: %w", projects[index], err)
 		}
 	}
 	return nil
+}
+
+func (a App) projectDependencies(cfg *config.Config) (herdr.Client, manager.Shell) {
+	if cfg.Remote == "" {
+		return herdr.New("", a.logger), manager.NewDefaultShell(a.logger)
+	}
+	return herdr.NewRemote("", cfg.Remote, a.logger), manager.NewRemoteShell(cfg.Remote, a.logger)
 }
 
 func loadProjects(projects []string) ([]*config.Config, error) {

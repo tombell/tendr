@@ -10,6 +10,7 @@ import (
 
 	"github.com/tombell/tendr/internal/config"
 	"github.com/tombell/tendr/internal/herdr"
+	"github.com/tombell/tendr/internal/sshutil"
 )
 
 type Herdr interface {
@@ -170,6 +171,39 @@ type DefaultShell struct {
 
 func NewDefaultShell(logger *log.Logger) DefaultShell {
 	return DefaultShell{logger: logger}
+}
+
+type RemoteShell struct {
+	remote string
+	logger *log.Logger
+}
+
+func NewRemoteShell(remote string, logger *log.Logger) RemoteShell {
+	return RemoteShell{remote: remote, logger: logger}
+}
+
+func (s RemoteShell) Run(ctx context.Context, session, root, command string) error {
+	remoteCommand := "cd " + shellQuote(root) + " && env " + shellQuote("HERDR_SESSION="+session) + " ${SHELL:-/bin/sh} -c " + shellQuote(command)
+	if s.logger != nil {
+		s.logger.Printf("ssh %s %s", s.remote, remoteCommand)
+	}
+	process, err := sshutil.Command(ctx, s.remote, remoteCommand)
+	if err != nil {
+		return err
+	}
+	output, err := process.CombinedOutput()
+	if err != nil {
+		message := strings.TrimSpace(string(output))
+		if message != "" {
+			return fmt.Errorf("%w: %s", err, message)
+		}
+		return err
+	}
+	return nil
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
 func (s DefaultShell) Run(ctx context.Context, session, root, command string) error {

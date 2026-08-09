@@ -1,6 +1,6 @@
 # Tendr
 
-Tendr is a Go CLI for declaratively managing local [Herdr](https://herdr.dev/) projects. Each `~/.config/tendr/<name>.yml` file defines one named Herdr session, including its workspaces, tabs, panes, commands, and lifecycle hooks.
+Tendr is a Go CLI for declaratively managing local and remote [Herdr](https://herdr.dev/) projects. Each `~/.config/tendr/<name>.yml` file defines one named Herdr session, including its workspaces, tabs, panes, commands, and lifecycle hooks.
 
 ## Install
 
@@ -100,6 +100,25 @@ workspaces:
 See [`examples/project.yml`](examples/project.yml) for a standalone example.
 
 Roots inherit from project → workspace → tab → pane. Relative paths resolve from the parent root, absolute paths replace it, and `~` expands to the current user's home directory.
+
+### Remote projects
+
+Set `remote` to an OpenSSH host alias or SSH URL to create and manage the project on another machine:
+
+```yaml
+remote: workbox
+root: /home/you/Code/acme
+workspaces:
+  - label: app
+    tabs:
+      - label: shell
+        commands:
+          - make dev
+```
+
+Tendr executes Herdr operations and lifecycle hooks over `ssh`, while `tendr attach` and `tendr start --attach` use Herdr's local thin client (`herdr --remote workbox --session <name>`). Remote project roots must be absolute paths; nested relative roots still inherit normally. Herdr must be installed on the remote host and available to non-interactive SSH commands. Configure authentication in `~/.ssh/config`, load passphrase-protected keys with `ssh-add`, and verify `ssh workbox` before using Tendr. See [Herdr's persistence and remote access documentation](https://herdr.dev/docs/persistence-remote/).
+
+`list --running` intentionally lists local sessions only; configured remote projects remain available through `list`.
 
 Each project requires a root and at least one workspace. Each workspace requires at least one tab. Workspace and tab labels must be unique among siblings. Pane directions are `right` or `down`; optional ratios must be greater than `0` and less than `1`.
 

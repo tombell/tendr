@@ -39,6 +39,7 @@ type Workspace struct {
 }
 
 type Config struct {
+	Remote      string      `yaml:"remote,omitempty"`
 	Root        string      `yaml:"root"`
 	BeforeStart []string    `yaml:"before_start,omitempty"`
 	AfterStart  []string    `yaml:"after_start,omitempty"`
@@ -152,6 +153,11 @@ func validateCommands(problems *[]string, path string, commands []string) {
 }
 
 func (c *Config) resolvePaths(configDir string) error {
+	// Remote roots belong to the remote host. In particular, do not expand ~
+	// using the local user's home directory.
+	if c.Remote != "" {
+		configDir = ""
+	}
 	root, err := resolvePath(configDir, c.Root)
 	if err != nil {
 		return fmt.Errorf("root: %w", err)
@@ -185,6 +191,15 @@ func (c *Config) resolvePaths(configDir string) error {
 func resolvePath(parent, child string) (string, error) {
 	if child == "" {
 		return filepath.Clean(parent), nil
+	}
+	if parent == "" {
+		if strings.HasPrefix(child, "~") {
+			return "", fmt.Errorf("remote roots must be absolute (got %q)", child)
+		}
+		if !filepath.IsAbs(child) {
+			return "", fmt.Errorf("remote project root must be absolute (got %q)", child)
+		}
+		return filepath.Clean(child), nil
 	}
 	expanded, err := expandHome(child)
 	if err != nil {

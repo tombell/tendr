@@ -67,6 +67,45 @@ workspaces:
 	}
 }
 
+func TestLoadResolvesRemoteRootsWithoutUsingLocalHome(t *testing.T) {
+	path := writeConfig(t, t.TempDir(), "remote.yml", `
+remote: workbox
+root: /srv/acme
+workspaces:
+  - label: api
+    root: services/api
+    tabs:
+      - label: shell
+        root: cmd/server
+`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Remote != "workbox" {
+		t.Errorf("Remote = %q, want workbox", cfg.Remote)
+	}
+	if got, want := cfg.Workspaces[0].Tabs[0].Root, "/srv/acme/services/api/cmd/server"; got != want {
+		t.Errorf("tab root = %q, want %q", got, want)
+	}
+}
+
+func TestLoadRejectsNonAbsoluteRemoteRoot(t *testing.T) {
+	path := writeConfig(t, t.TempDir(), "remote.yml", `
+remote: workbox
+root: ~/Code/acme
+workspaces:
+  - label: api
+    tabs:
+      - label: shell
+`)
+	_, err := Load(path)
+	if err == nil || !strings.Contains(err.Error(), "remote roots must be absolute") {
+		t.Fatalf("Load() error = %v, want absolute remote root error", err)
+	}
+}
+
 func TestLoadRejectsUnknownAndLegacyFields(t *testing.T) {
 	tests := map[string]string{
 		"unknown": `root: /tmp
