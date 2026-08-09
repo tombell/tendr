@@ -19,7 +19,7 @@ make dev
 ## Usage
 
 ```text
-tendr list
+tendr list [--running]
 tendr start <names...>
 tendr start --attach <name>
 tendr attach <name>
@@ -29,7 +29,7 @@ tendr --debug start <names...>
 tendr --version
 ```
 
-- `list` prints the configured project names.
+- `list` prints the configured project names. Pass `--running` to print currently running Herdr sessions instead.
 - `start` validates every requested config, then creates any sessions that do not already exist. Pass `--attach` with one project to connect the current terminal after startup finishes.
 - `attach` connects the current terminal to an existing session.
 - `stop` runs each session's `before_stop` hooks, deletes the session and its persisted state, then runs its `after_stop` hooks.

@@ -56,6 +56,27 @@ func (a App) List() error {
 	return nil
 }
 
+func (a App) ListRunningSessions() error {
+	sessions, err := herdr.New("", a.logger).ListSessions(context.Background())
+	if err != nil {
+		return fmt.Errorf("list running sessions: %w", err)
+	}
+
+	var names []string
+	for _, session := range sessions {
+		if session.Running {
+			names = append(names, session.Name)
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if _, err := fmt.Fprintln(a.stdout, name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (a App) Start(projects []string, attach bool) error {
 	if len(projects) == 0 {
 		return errors.New("usage: tendr start [--attach] <project names...>")

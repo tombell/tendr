@@ -17,7 +17,7 @@ Commands:
 
   attach        Attach to a Herdr session
   completion    Generate shell completion script
-  list          List configured projects
+  list          List configured projects or running sessions
   start         Start Herdr project sessions
   stop          Stop Herdr project sessions
 
@@ -87,8 +87,18 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		}
 		return app.Completion(remaining[1])
 	case "list":
-		if len(remaining) != 1 {
-			return errors.New("usage: tendr list")
+		listFlags := flag.NewFlagSet("tendr list", flag.ContinueOnError)
+		listFlags.SetOutput(stderr)
+		var running bool
+		listFlags.BoolVar(&running, "running", false, "list running sessions")
+		if err := listFlags.Parse(remaining[1:]); err != nil {
+			return err
+		}
+		if len(listFlags.Args()) != 0 {
+			return errors.New("usage: tendr list [--running]")
+		}
+		if running {
+			return app.ListRunningSessions()
 		}
 		return app.List()
 	case "start":

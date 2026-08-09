@@ -31,6 +31,9 @@ func TestCompletionScriptsHaveValidSyntax(t *testing.T) {
 			if !strings.Contains(output.String(), "--attach") {
 				t.Fatalf("Completion(%q) does not include the start --attach flag", test.shell)
 			}
+			if !strings.Contains(output.String(), "--running") {
+				t.Fatalf("Completion(%q) does not include the list --running flag", test.shell)
+			}
 
 			binary, err := exec.LookPath(test.command)
 			if err != nil {

@@ -1,12 +1,6 @@
 package cmd
 
-import (
-	"context"
-	"fmt"
-	"sort"
-
-	"github.com/tombell/tendr/internal/herdr"
-)
+import "fmt"
 
 const bashCompletion = `# bash completion for tendr
 _tendr() {
@@ -50,6 +44,11 @@ _tendr() {
     completion)
       if (( COMP_CWORD == command_index + 1 )); then
         COMPREPLY=( $(compgen -W 'bash zsh' -- "$current") )
+      fi
+      ;;
+    list)
+      if (( COMP_CWORD == command_index + 1 )); then
+        COMPREPLY=( $(compgen -W '--running' -- "$current") )
       fi
       ;;
     start)
@@ -134,6 +133,11 @@ _tendr() {
         compadd -- bash zsh
       fi
       ;;
+    list)
+      if (( CURRENT == command_index + 1 )); then
+        compadd -- --running
+      fi
+      ;;
     start)
       projects=(--attach "${(@f)$(tendr list 2>/dev/null)}")
       candidates=()
@@ -185,25 +189,4 @@ func (a App) Completion(shell string) error {
 
 	_, err := fmt.Fprint(a.stdout, script)
 	return err
-}
-
-func (a App) ListRunningSessions() error {
-	sessions, err := herdr.New("", a.logger).ListSessions(context.Background())
-	if err != nil {
-		return fmt.Errorf("list running sessions: %w", err)
-	}
-
-	var names []string
-	for _, session := range sessions {
-		if session.Running {
-			names = append(names, session.Name)
-		}
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		if _, err := fmt.Fprintln(a.stdout, name); err != nil {
-			return err
-		}
-	}
-	return nil
 }

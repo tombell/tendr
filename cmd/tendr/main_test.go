@@ -33,8 +33,32 @@ func TestRunUnknownCommand(t *testing.T) {
 func TestRunRejectsListArguments(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	err := run([]string{"list", "extra"}, nil, &stdout, &stderr)
-	if err == nil || err.Error() != "usage: tendr list" {
+	if err == nil || err.Error() != "usage: tendr list [--running]" {
 		t.Fatalf("run() error = %v", err)
+	}
+}
+
+func TestRunListsRunningSessions(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "herdr")
+	contents := `#!/bin/sh
+if [ "$*" != "session list --json" ]; then
+  printf 'unexpected arguments: %s\n' "$*" >&2
+  exit 1
+fi
+printf '%s\n' '{"sessions":[{"name":"zeta","running":true},{"name":"saved","running":false},{"name":"alpha","running":true}]}'
+`
+	if err := os.WriteFile(script, []byte(contents), 0o755); err != nil {
+		t.Fatalf("WriteFile(fake herdr) error = %v", err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"list", "--running"}, nil, &stdout, &stderr); err != nil {
+		t.Fatalf("run(list --running) error = %v", err)
+	}
+	if got, want := stdout.String(), "alpha\nzeta\n"; got != want {
+		t.Fatalf("run(list --running) = %q, want %q", got, want)
 	}
 }
 
@@ -46,6 +70,9 @@ func TestRunCompletion(t *testing.T) {
 		}
 		if !strings.Contains(stdout.String(), "tendr __complete sessions") {
 			t.Fatalf("run(completion %s) output does not complete running sessions", shell)
+		}
+		if !strings.Contains(stdout.String(), "--running") {
+			t.Fatalf("run(completion %s) output does not complete list --running", shell)
 		}
 		if stderr.Len() != 0 {
 			t.Fatalf("run(completion %s) stderr = %q", shell, stderr.String())
