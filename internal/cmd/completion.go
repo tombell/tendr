@@ -43,7 +43,7 @@ _tendr() {
       ;;
     completion)
       if (( COMP_CWORD == command_index + 1 )); then
-        COMPREPLY=( $(compgen -W 'bash zsh' -- "$current") )
+        COMPREPLY=( $(compgen -W 'bash fish zsh' -- "$current") )
       fi
       ;;
     list)
@@ -130,7 +130,7 @@ _tendr() {
       ;;
     completion)
       if (( CURRENT == command_index + 1 )); then
-        compadd -- bash zsh
+        compadd -- bash fish zsh
       fi
       ;;
     list)
@@ -176,15 +176,84 @@ _tendr() {
 compdef _tendr tendr
 `
 
+const fishCompletion = `# fish completion for tendr
+function __tendr_no_subcommand
+    set -l tokens (commandline -xpc)
+    for token in $tokens[2..-1]
+        switch $token
+            case -v --version -h --help attach completion list start stop
+                return 1
+        end
+    end
+    return 0
+end
+
+function __tendr_using_subcommand
+    set -l tokens (commandline -xpc)
+    for token in $tokens[2..-1]
+        switch $token
+            case -v --version -h --help
+                return 1
+            case attach completion list start stop
+                test "$token" = "$argv[1]"
+                return
+        end
+    end
+    return 1
+end
+
+function __tendr_needs_argument
+    __tendr_using_subcommand $argv[1]; or return 1
+    set -l tokens (commandline -xpc)
+    set -l command_index (contains -i -- $argv[1] $tokens)
+    test -n "$command_index"; and test (count $tokens) -eq $command_index
+end
+
+function __tendr_projects
+    set -l used (commandline -xpc)
+    for project in (tendr list 2>/dev/null)
+        if not contains -- $project $used
+            string escape -- $project
+        end
+    end
+end
+
+function __tendr_running_sessions
+    for session in (tendr __complete sessions 2>/dev/null)
+        string escape -- $session
+    end
+end
+
+complete -c tendr -f
+
+complete -c tendr -n __tendr_no_subcommand -a attach -d 'Attach to a Herdr session'
+complete -c tendr -n __tendr_no_subcommand -a completion -d 'Generate shell completion script'
+complete -c tendr -n __tendr_no_subcommand -a list -d 'List configured projects or running sessions'
+complete -c tendr -n __tendr_no_subcommand -a start -d 'Start Herdr project sessions'
+complete -c tendr -n __tendr_no_subcommand -a stop -d 'Stop Herdr project sessions'
+complete -c tendr -n __tendr_no_subcommand -s d -l debug -d 'Show debug logging'
+complete -c tendr -n __tendr_no_subcommand -s v -l version -d 'Show the version number'
+complete -c tendr -n __tendr_no_subcommand -s h -l help -d 'Show help'
+
+complete -c tendr -n '__tendr_needs_argument attach' -a '(__tendr_running_sessions)'
+complete -c tendr -n '__tendr_needs_argument completion' -a 'bash fish zsh'
+complete -c tendr -n '__tendr_needs_argument list' -l running -d 'List running sessions'
+complete -c tendr -n '__tendr_using_subcommand start' -l attach -d 'Attach after starting'
+complete -c tendr -n '__tendr_using_subcommand start' -a '(__tendr_projects)'
+complete -c tendr -n '__tendr_using_subcommand stop' -a '(__tendr_projects)'
+`
+
 func (a App) Completion(shell string) error {
 	var script string
 	switch shell {
 	case "bash":
 		script = bashCompletion
+	case "fish":
+		script = fishCompletion
 	case "zsh":
 		script = zshCompletion
 	default:
-		return fmt.Errorf("unsupported shell %q (supported: bash, zsh)", shell)
+		return fmt.Errorf("unsupported shell %q (supported: bash, fish, zsh)", shell)
 	}
 
 	_, err := fmt.Fprint(a.stdout, script)

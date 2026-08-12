@@ -11,12 +11,15 @@ import (
 
 func TestCompletionScriptsHaveValidSyntax(t *testing.T) {
 	tests := []struct {
-		shell   string
-		command string
-		want    string
+		shell       string
+		command     string
+		want        string
+		attachFlag  string
+		runningFlag string
 	}{
-		{shell: "bash", command: "bash", want: "tendr __complete sessions"},
-		{shell: "zsh", command: "zsh", want: "tendr __complete sessions"},
+		{shell: "bash", command: "bash", want: "tendr __complete sessions", attachFlag: "--attach", runningFlag: "--running"},
+		{shell: "fish", command: "fish", want: "tendr __complete sessions", attachFlag: "-l attach", runningFlag: "-l running"},
+		{shell: "zsh", command: "zsh", want: "tendr __complete sessions", attachFlag: "--attach", runningFlag: "--running"},
 	}
 
 	for _, test := range tests {
@@ -28,11 +31,14 @@ func TestCompletionScriptsHaveValidSyntax(t *testing.T) {
 			if !strings.Contains(output.String(), test.want) {
 				t.Fatalf("Completion(%q) does not contain %q", test.shell, test.want)
 			}
-			if !strings.Contains(output.String(), "--attach") {
+			if !strings.Contains(output.String(), test.attachFlag) {
 				t.Fatalf("Completion(%q) does not include the start --attach flag", test.shell)
 			}
-			if !strings.Contains(output.String(), "--running") {
+			if !strings.Contains(output.String(), test.runningFlag) {
 				t.Fatalf("Completion(%q) does not include the list --running flag", test.shell)
+			}
+			if !strings.Contains(output.String(), "fish") {
+				t.Fatalf("Completion(%q) does not include fish as a completion target", test.shell)
 			}
 
 			binary, err := exec.LookPath(test.command)
@@ -49,9 +55,9 @@ func TestCompletionScriptsHaveValidSyntax(t *testing.T) {
 }
 
 func TestCompletionRejectsUnsupportedShell(t *testing.T) {
-	err := New(nil, nil, &bytes.Buffer{}, nil).Completion("fish")
-	if err == nil || err.Error() != `unsupported shell "fish" (supported: bash, zsh)` {
-		t.Fatalf("Completion(\"fish\") error = %v", err)
+	err := New(nil, nil, &bytes.Buffer{}, nil).Completion("nushell")
+	if err == nil || err.Error() != `unsupported shell "nushell" (supported: bash, fish, zsh)` {
+		t.Fatalf("Completion(\"nushell\") error = %v", err)
 	}
 }
 

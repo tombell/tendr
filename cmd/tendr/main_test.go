@@ -63,7 +63,7 @@ printf '%s\n' '{"sessions":[{"name":"zeta","running":true},{"name":"saved","runn
 }
 
 func TestRunCompletion(t *testing.T) {
-	for _, shell := range []string{"bash", "zsh"} {
+	for _, shell := range []string{"bash", "fish", "zsh"} {
 		var stdout, stderr bytes.Buffer
 		if err := run([]string{"completion", shell}, nil, &stdout, &stderr); err != nil {
 			t.Fatalf("run(completion %s) error = %v", shell, err)
@@ -71,7 +71,11 @@ func TestRunCompletion(t *testing.T) {
 		if !strings.Contains(stdout.String(), "tendr __complete sessions") {
 			t.Fatalf("run(completion %s) output does not complete running sessions", shell)
 		}
-		if !strings.Contains(stdout.String(), "--running") {
+		runningFlag := "--running"
+		if shell == "fish" {
+			runningFlag = "-l running"
+		}
+		if !strings.Contains(stdout.String(), runningFlag) {
 			t.Fatalf("run(completion %s) output does not complete list --running", shell)
 		}
 		if stderr.Len() != 0 {
@@ -84,15 +88,15 @@ func TestRunRejectsInvalidCompletionArguments(t *testing.T) {
 	for _, args := range [][]string{{"completion"}, {"completion", "bash", "extra"}} {
 		var stdout, stderr bytes.Buffer
 		err := run(args, nil, &stdout, &stderr)
-		if err == nil || err.Error() != "usage: tendr completion <bash|zsh>" {
+		if err == nil || err.Error() != "usage: tendr completion <bash|fish|zsh>" {
 			t.Fatalf("run(%q) error = %v", args, err)
 		}
 	}
 
 	var stdout, stderr bytes.Buffer
-	err := run([]string{"completion", "fish"}, nil, &stdout, &stderr)
+	err := run([]string{"completion", "nushell"}, nil, &stdout, &stderr)
 	if err == nil || !strings.Contains(err.Error(), "unsupported shell") {
-		t.Fatalf("run(completion fish) error = %v", err)
+		t.Fatalf("run(completion nushell) error = %v", err)
 	}
 }
 

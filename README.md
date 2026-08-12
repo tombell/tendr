@@ -24,7 +24,7 @@ tendr start <names...>
 tendr start --attach <name>
 tendr attach <name>
 tendr stop <names...>
-tendr completion <bash|zsh>
+tendr completion <bash|fish|zsh>
 tendr --debug start <names...>
 tendr --version
 ```
@@ -36,7 +36,7 @@ tendr --version
 
 ## Shell completion
 
-Tendr can generate completion scripts for Bash and Zsh. The scripts complete commands and flags (including `start --attach`), configured projects for `start` and `stop`, and currently running Herdr sessions for `attach`.
+Tendr can generate completion scripts for Bash, Fish and Zsh. The scripts complete commands and flags (including `start --attach`), configured projects for `start` and `stop`, and currently running Herdr sessions for `attach`.
 
 For Bash, add this to `~/.bashrc`:
 
@@ -49,6 +49,12 @@ For Zsh, initialize its completion system and source the generated script from `
 ```zsh
 autoload -Uz compinit && compinit
 source <(tendr completion zsh)
+```
+
+For Fish, source the generated script from `~/.config/fish/config.fish`:
+
+```fish
+tendr completion fish | source
 ```
 
 ## Configuration

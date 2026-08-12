@@ -83,7 +83,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return app.Attach(remaining[1])
 	case "completion":
 		if len(remaining) != 2 {
-			return errors.New("usage: tendr completion <bash|zsh>")
+			return errors.New("usage: tendr completion <bash|fish|zsh>")
 		}
 		return app.Completion(remaining[1])
 	case "list":
