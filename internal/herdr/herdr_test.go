@@ -74,6 +74,10 @@ func TestSessionCommandsDoNotLeakAmbientSession(t *testing.T) {
 	if err != nil || !exists {
 		t.Fatalf("SessionExists(saved) = %v, %v", exists, err)
 	}
+	exists, running, err := client.SessionStatus(ctx, "saved")
+	if err != nil || !exists || running {
+		t.Fatalf("SessionStatus(saved) = %v, %v, %v", exists, running, err)
+	}
 	if err := client.DeleteSession(ctx, "demo"); err != nil {
 		t.Fatalf("DeleteSession() error = %v", err)
 	}

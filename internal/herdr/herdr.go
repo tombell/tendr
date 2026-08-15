@@ -69,16 +69,21 @@ func (c Client) ListSessions(ctx context.Context) ([]Session, error) {
 }
 
 func (c Client) SessionExists(ctx context.Context, name string) (bool, error) {
+	exists, _, err := c.SessionStatus(ctx, name)
+	return exists, err
+}
+
+func (c Client) SessionStatus(ctx context.Context, name string) (bool, bool, error) {
 	sessions, err := c.ListSessions(ctx)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 	for _, session := range sessions {
 		if session.Name == name {
-			return true, nil
+			return true, session.Running, nil
 		}
 	}
-	return false, nil
+	return false, false, nil
 }
 
 func (c Client) AttachSession(ctx context.Context, name string, stdin io.Reader, stdout, stderr io.Writer) error {
