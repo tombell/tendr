@@ -14,6 +14,7 @@ import (
 
 type Herdr interface {
 	SessionExists(context.Context, string) (bool, error)
+	SessionStatus(context.Context, string) (bool, bool, error)
 	StartSession(context.Context, string) error
 	DeleteSession(context.Context, string) error
 	CreateWorkspace(context.Context, string, string, string) (herdr.WorkspaceResult, error)
@@ -42,12 +43,15 @@ func (m Manager) Start(ctx context.Context, project string, cfg *config.Config) 
 		return err
 	}
 
-	exists, err := m.herdr.SessionExists(ctx, project)
+	exists, running, err := m.herdr.SessionStatus(ctx, project)
 	if err != nil {
 		return fmt.Errorf("check session %q: %w", project, err)
 	}
-	if exists {
+	if running {
 		return nil
+	}
+	if exists {
+		return m.herdr.StartSession(ctx, project)
 	}
 
 	if err := m.runHooks(ctx, project, cfg.Root, cfg.BeforeStart); err != nil {

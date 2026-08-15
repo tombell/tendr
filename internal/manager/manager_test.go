@@ -50,7 +50,7 @@ func TestStartOrdersHooksTopologyCommandsAndFocus(t *testing.T) {
 	}
 
 	want := []string{
-		"exists demo",
+		"status demo",
 		"shell /project project hook",
 		"start demo",
 		"shell /project/api workspace before",
@@ -92,14 +92,27 @@ func TestStartReportsProjectAfterStartFailureAfterCreation(t *testing.T) {
 
 func TestStartIsIdempotentForExistingSession(t *testing.T) {
 	events := []string{}
-	client := &fakeHerdr{events: &events, exists: true}
+	client := &fakeHerdr{events: &events, exists: true, running: true}
 	manager := New(client, fakeShell{events: &events})
 	cfg := validConfig()
 
 	if err := manager.Start(context.Background(), "demo", cfg); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	if want := []string{"exists demo"}; !reflect.DeepEqual(events, want) {
+	if want := []string{"status demo"}; !reflect.DeepEqual(events, want) {
+		t.Fatalf("events = %#v, want %#v", events, want)
+	}
+}
+
+func TestStartResumesStoppedSessionWithoutRecreatingLayout(t *testing.T) {
+	events := []string{}
+	client := &fakeHerdr{events: &events, exists: true}
+	manager := New(client, fakeShell{events: &events})
+
+	if err := manager.Start(context.Background(), "demo", validConfig()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if want := []string{"status demo", "start demo"}; !reflect.DeepEqual(events, want) {
 		t.Fatalf("events = %#v, want %#v", events, want)
 	}
 }
@@ -256,6 +269,7 @@ func validConfig() *config.Config {
 type fakeHerdr struct {
 	events     *[]string
 	exists     bool
+	running    bool
 	failAt     string
 	splitCount int
 }
@@ -270,6 +284,10 @@ func (f *fakeHerdr) record(event string) error {
 
 func (f *fakeHerdr) SessionExists(_ context.Context, name string) (bool, error) {
 	return f.exists, f.record("exists " + name)
+}
+
+func (f *fakeHerdr) SessionStatus(_ context.Context, name string) (bool, bool, error) {
+	return f.exists, f.running, f.record("status " + name)
 }
 
 func (f *fakeHerdr) StartSession(_ context.Context, name string) error {
