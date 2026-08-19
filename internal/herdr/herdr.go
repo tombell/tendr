@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tombell/tendr/internal/sshutil"
 )
 
 const sessionEnvironment = "HERDR_SESSION"
@@ -33,6 +35,7 @@ type TabResult struct {
 
 type Client struct {
 	binary        string
+	remote        string
 	logger        *log.Logger
 	readyTimeout  time.Duration
 	pollInterval  time.Duration
@@ -40,10 +43,19 @@ type Client struct {
 }
 
 func New(binary string, logger *log.Logger) Client {
+	return newClient(binary, "", logger)
+}
+
+func NewRemote(binary, remote string, logger *log.Logger) Client {
+	return newClient(binary, remote, logger)
+}
+
+func newClient(binary, remote string, logger *log.Logger) Client {
 	if binary == "" {
 		binary = "herdr"
 	}
 	client := Client{
+		remote:       remote,
 		binary:       binary,
 		logger:       logger,
 		readyTimeout: 5 * time.Second,
@@ -110,7 +122,11 @@ func (c Client) AttachSession(ctx context.Context, name string, stdin io.Reader,
 		c.logger.Printf("%s session attach %s", c.binary, formatArguments([]string{name}))
 	}
 
-	command := exec.CommandContext(ctx, c.binary, "session", "attach", name)
+	args := []string{"session", "attach", name}
+	if c.remote != "" {
+		args = []string{"--remote", c.remote, "--session", name}
+	}
+	command := exec.CommandContext(ctx, c.binary, args...)
 	command.Env = withSession(os.Environ(), "")
 	command.Stdin = stdin
 	command.Stdout = stdout
@@ -122,6 +138,20 @@ func (c Client) AttachSession(ctx context.Context, name string, stdin io.Reader,
 }
 
 func (c Client) StartSession(ctx context.Context, name string) error {
+	if c.remote != "" {
+		if c.logger != nil {
+			c.logger.Printf("ssh %s nohup env HERDR_SESSION=%s herdr server", c.remote, name)
+		}
+		remoteCommand := "nohup env " + shellQuote(sessionEnvironment+"="+name) + " herdr server >/dev/null 2>&1 </dev/null &"
+		command, err := sshutil.Command(ctx, c.remote, remoteCommand)
+		if err != nil {
+			return err
+		}
+		if output, err := command.CombinedOutput(); err != nil {
+			return fmt.Errorf("start remote server for session %q: %w: %s", name, err, strings.TrimSpace(string(output)))
+		}
+		return c.waitForServer(ctx, name, nil)
+	}
 	if c.logger != nil {
 		c.logger.Printf("HERDR_SESSION=%s %s server", name, c.binary)
 	}
@@ -141,6 +171,10 @@ func (c Client) StartSession(ctx context.Context, name string) error {
 		return fmt.Errorf("start server for session %q: %w", name, err)
 	}
 
+	return c.waitForServer(ctx, name, command)
+}
+
+func (c Client) waitForServer(ctx context.Context, name string, command *exec.Cmd) error {
 	deadline := time.NewTimer(c.readyTimeout)
 	defer deadline.Stop()
 	ticker := time.NewTicker(c.pollInterval)
@@ -152,8 +186,10 @@ func (c Client) StartSession(ctx context.Context, name string) error {
 		if err != nil {
 			lastErr = err
 		} else if running {
-			if err := command.Process.Release(); err != nil {
-				return fmt.Errorf("release server process for session %q: %w", name, err)
+			if command != nil {
+				if err := command.Process.Release(); err != nil {
+					return fmt.Errorf("release server process for session %q: %w", name, err)
+				}
 			}
 			return nil
 		} else {
@@ -162,10 +198,14 @@ func (c Client) StartSession(ctx context.Context, name string) error {
 
 		select {
 		case <-ctx.Done():
-			stopProcess(command)
+			if command != nil {
+				stopProcess(command)
+			}
 			return fmt.Errorf("wait for session %q readiness: %w", name, ctx.Err())
 		case <-deadline.C:
-			stopProcess(command)
+			if command != nil {
+				stopProcess(command)
+			}
 			return fmt.Errorf("wait for session %q readiness: %w", name, lastErr)
 		case <-ticker.C:
 		}
@@ -333,8 +373,23 @@ func (c Client) run(ctx context.Context, session string, args ...string) ([]byte
 }
 
 func (c Client) exec(ctx context.Context, session string, args []string) ([]byte, error) {
-	command := exec.CommandContext(ctx, c.binary, args...)
-	command.Env = withSession(os.Environ(), session)
+	var command *exec.Cmd
+	if c.remote == "" {
+		command = exec.CommandContext(ctx, c.binary, args...)
+		command.Env = withSession(os.Environ(), session)
+	} else {
+		remoteArgs := make([]string, 0, len(args)+2)
+		if session != "" {
+			remoteArgs = append(remoteArgs, "env", sessionEnvironment+"="+session)
+		}
+		remoteArgs = append(remoteArgs, "herdr")
+		remoteArgs = append(remoteArgs, args...)
+		var err error
+		command, err = sshutil.Command(ctx, c.remote, joinShellArguments(remoteArgs))
+		if err != nil {
+			return nil, err
+		}
+	}
 	output, err := command.CombinedOutput()
 	if err != nil {
 		message := strings.TrimSpace(string(output))
@@ -365,6 +420,18 @@ func stopProcess(command *exec.Cmd) {
 	}
 	_ = command.Process.Kill()
 	_ = command.Wait()
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+func joinShellArguments(arguments []string) string {
+	quoted := make([]string, len(arguments))
+	for i, argument := range arguments {
+		quoted[i] = shellQuote(argument)
+	}
+	return strings.Join(quoted, " ")
 }
 
 func formatArguments(arguments []string) string {

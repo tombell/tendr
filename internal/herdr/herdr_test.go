@@ -115,6 +115,33 @@ func TestAttachSessionUsesNamedSessionAndConnectsStandardIO(t *testing.T) {
 	}
 }
 
+func TestRemoteClientRunsHerdrThroughSSH(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "ssh.log")
+	script := filepath.Join(dir, "ssh")
+	contents := `#!/bin/sh
+printf '%s\n' "$*" >> "$SSH_LOG"
+printf '%s\n' '{"sessions":[{"name":"demo","running":true}]}'
+`
+	if err := os.WriteFile(script, []byte(contents), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("SSH_LOG", logPath)
+
+	client := NewRemote("", "workbox", nil)
+	sessions, err := client.ListSessions(context.Background())
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if len(sessions) != 1 || sessions[0].Name != "demo" {
+		t.Fatalf("ListSessions() = %#v", sessions)
+	}
+	if got := readLog(t, logPath); !strings.Contains(got, "workbox 'herdr' 'session' 'list' '--json'") {
+		t.Fatalf("ssh invocation = %q", got)
+	}
+}
+
 func TestAttachSessionRejectsSessionsThatAreNotRunning(t *testing.T) {
 	for _, test := range []struct {
 		name string
