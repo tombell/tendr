@@ -287,8 +287,8 @@ func (f *fakeHerdr) SessionExists(_ context.Context, name string) (bool, error) 
 	return f.exists, f.record("exists " + name)
 }
 
-func (f *fakeHerdr) SessionStatus(_ context.Context, name string) (bool, bool, error) {
-	return f.exists, f.running, f.record("status " + name)
+func (f *fakeHerdr) SessionStatus(_ context.Context, name string) (herdr.SessionStatus, error) {
+	return herdr.SessionStatus{Exists: f.exists, Running: f.running}, f.record("status " + name)
 }
 
 func (f *fakeHerdr) StartSession(_ context.Context, name string) error {

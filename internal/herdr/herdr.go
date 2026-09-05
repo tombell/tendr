@@ -20,6 +20,11 @@ type Session struct {
 	Running bool   `json:"running"`
 }
 
+type SessionStatus struct {
+	Exists  bool
+	Running bool
+}
+
 type WorkspaceResult struct {
 	WorkspaceID string
 	TabID       string
@@ -69,41 +74,33 @@ func (c Client) ListSessions(ctx context.Context) ([]Session, error) {
 }
 
 func (c Client) SessionExists(ctx context.Context, name string) (bool, error) {
-	exists, _, err := c.SessionStatus(ctx, name)
-	return exists, err
+	status, err := c.SessionStatus(ctx, name)
+	return status.Exists, err
 }
 
-func (c Client) SessionStatus(ctx context.Context, name string) (bool, bool, error) {
+func (c Client) SessionStatus(ctx context.Context, name string) (SessionStatus, error) {
 	sessions, err := c.ListSessions(ctx)
 	if err != nil {
-		return false, false, err
+		return SessionStatus{}, err
 	}
 	for _, session := range sessions {
 		if session.Name == name {
-			return true, session.Running, nil
+			return SessionStatus{Exists: true, Running: session.Running}, nil
 		}
 	}
-	return false, false, nil
+	return SessionStatus{}, nil
 }
 
 func (c Client) AttachSession(ctx context.Context, name string, stdin io.Reader, stdout, stderr io.Writer) error {
-	sessions, err := c.ListSessions(ctx)
+	status, err := c.SessionStatus(ctx, name)
 	if err != nil {
 		return fmt.Errorf("check session %q before attaching: %w", name, err)
 	}
-
-	found := false
-	for _, session := range sessions {
-		if session.Name == name {
-			found = true
-			if session.Running {
-				break
-			}
-			return fmt.Errorf("session %q is not running", name)
-		}
-	}
-	if !found {
+	if !status.Exists {
 		return fmt.Errorf("session %q does not exist", name)
+	}
+	if !status.Running {
+		return fmt.Errorf("session %q is not running", name)
 	}
 
 	if c.logger != nil {
@@ -291,23 +288,14 @@ func (c Client) FocusWorkspace(ctx context.Context, session, workspaceID string)
 }
 
 func (c Client) DeleteSession(ctx context.Context, name string) error {
-	sessions, err := c.ListSessions(ctx)
+	status, err := c.SessionStatus(ctx, name)
 	if err != nil {
 		return fmt.Errorf("inspect session %q before deletion: %w", name, err)
 	}
-	var found bool
-	var running bool
-	for _, session := range sessions {
-		if session.Name == name {
-			found = true
-			running = session.Running
-			break
-		}
-	}
-	if !found {
+	if !status.Exists {
 		return nil
 	}
-	if running {
+	if status.Running {
 		if _, err := c.run(ctx, "", "session", "stop", name, "--json"); err != nil {
 			return fmt.Errorf("stop session %q before deletion: %w", name, err)
 		}
