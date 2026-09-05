@@ -16,8 +16,6 @@ import (
 	"github.com/tombell/tendr/internal/manager"
 )
 
-const ProjectsDir = "~/.config/tendr"
-
 type App struct {
 	logger *log.Logger
 	stdin  io.Reader
@@ -30,7 +28,7 @@ func New(logger *log.Logger, stdin io.Reader, stdout, stderr io.Writer) App {
 }
 
 func (a App) List() error {
-	dir, err := expandHome(ProjectsDir)
+	dir, err := projectsDirectory()
 	if err != nil {
 		return fmt.Errorf("resolve projects directory: %w", err)
 	}
@@ -133,7 +131,7 @@ func (a App) Stop(projects []string) error {
 }
 
 func loadProjects(projects []string) ([]*config.Config, error) {
-	dir, err := expandHome(ProjectsDir)
+	dir, err := projectsDirectory()
 	if err != nil {
 		return nil, fmt.Errorf("resolve projects directory: %w", err)
 	}
@@ -162,16 +160,10 @@ func validProjectName(project string) bool {
 	return project != "" && filepath.Base(project) == project
 }
 
-func expandHome(path string) (string, error) {
-	if path != "~" && !strings.HasPrefix(path, "~/") {
-		return path, nil
-	}
+func projectsDirectory() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	if path == "~" {
-		return home, nil
-	}
-	return filepath.Join(home, strings.TrimPrefix(path, "~/")), nil
+	return filepath.Join(home, ".config", "tendr"), nil
 }
