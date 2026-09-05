@@ -10,6 +10,7 @@ import (
 
 	"github.com/tombell/tendr/internal/config"
 	"github.com/tombell/tendr/internal/herdr"
+	"github.com/tombell/tendr/internal/output"
 )
 
 type Herdr interface {
@@ -188,9 +189,11 @@ func (s DefaultShell) Run(ctx context.Context, session, root, command string) er
 	process := exec.CommandContext(ctx, shell, "-c", command)
 	process.Dir = root
 	process.Env = withEnvironmentVariable(os.Environ(), "HERDR_SESSION", session)
-	output, err := process.CombinedOutput()
-	if err != nil {
-		message := strings.TrimSpace(string(output))
+	var tail output.Tail
+	process.Stdout = &tail
+	process.Stderr = &tail
+	if err := process.Run(); err != nil {
+		message := strings.TrimSpace(tail.String())
 		if message != "" {
 			return fmt.Errorf("%w: %s", err, message)
 		}

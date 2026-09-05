@@ -10,6 +10,7 @@ import (
 
 	"github.com/tombell/tendr/internal/config"
 	"github.com/tombell/tendr/internal/herdr"
+	"github.com/tombell/tendr/internal/output"
 )
 
 func TestStartOrdersHooksTopologyCommandsAndFocus(t *testing.T) {
@@ -355,4 +356,20 @@ func containsEvent(events []string, fragment string) bool {
 		}
 	}
 	return false
+}
+
+func TestDefaultShellRetainsBoundedFailureOutput(t *testing.T) {
+	t.Setenv("SHELL", "/bin/sh")
+	command := "printf discarded-prefix; i=0; while [ $i -lt 5000 ]; do printf 'abcdefghijklmnop'; i=$((i+1)); done; printf failure-tail >&2; exit 1"
+	err := NewDefaultShell(nil).Run(context.Background(), "demo", t.TempDir(), command)
+	if err == nil {
+		t.Fatal("Run() error = nil")
+	}
+	message := err.Error()
+	if !strings.Contains(message, "[output truncated]") || !strings.HasSuffix(message, "failure-tail") || strings.Contains(message, "discarded-prefix") {
+		t.Fatal("error did not retain the truncated output tail")
+	}
+	if len(message) > output.Limit+100 {
+		t.Fatalf("error output was not bounded: %d bytes", len(message))
+	}
 }
