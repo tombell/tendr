@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tombell/tendr/internal/output"
 )
 
 const sessionEnvironment = "HERDR_SESSION"
@@ -320,15 +322,22 @@ func (c Client) run(ctx context.Context, session string, args ...string) ([]byte
 func (c Client) exec(ctx context.Context, session string, args []string) ([]byte, error) {
 	command := exec.CommandContext(ctx, c.binary, args...)
 	command.Env = withSession(os.Environ(), session)
-	output, err := command.CombinedOutput()
+	var stderr output.Tail
+	command.Stderr = &stderr
+	stdout, err := command.Output()
 	if err != nil {
-		message := strings.TrimSpace(string(output))
+		message := strings.TrimSpace(stderr.String())
+		if message == "" {
+			var tail output.Tail
+			_, _ = tail.Write(stdout)
+			message = strings.TrimSpace(tail.String())
+		}
 		if message != "" {
 			return nil, fmt.Errorf("%w: %s", err, message)
 		}
 		return nil, err
 	}
-	return output, nil
+	return stdout, nil
 }
 
 func withSession(environment []string, session string) []string {

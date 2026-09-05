@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/tombell/tendr/internal/output"
 )
 
 func TestClientUsesReturnedIDsAndTargetsNamedSession(t *testing.T) {
@@ -281,6 +283,52 @@ func TestStartSessionBoundsBlockedStatusCommand(t *testing.T) {
 			}
 			if elapsed := time.Since(started); elapsed >= time.Second {
 				t.Fatalf("blocked status exceeded readiness deadline: %v", elapsed)
+			}
+		})
+	}
+}
+
+func TestListSessionsSeparatesDiagnosticsFromJSON(t *testing.T) {
+	client, _ := newFakeClient(t)
+	script := `#!/bin/sh
+printf '%s' '{"sessions":[{"name":"demo","running":true}]}'
+printf warning >&2
+`
+	if err := os.WriteFile(client.binary, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sessions, err := client.ListSessions(context.Background())
+	if err != nil || len(sessions) != 1 || sessions[0].Name != "demo" {
+		t.Fatalf("ListSessions() = %+v, %v", sessions, err)
+	}
+}
+
+func TestExecRetainsBoundedFailureDiagnostics(t *testing.T) {
+	for _, stream := range []string{"stdout", "stderr"} {
+		t.Run(stream, func(t *testing.T) {
+			client, _ := newFakeClient(t)
+			redirect := ""
+			if stream == "stderr" {
+				redirect = "exec 1>&2\n"
+			}
+			script := "#!/bin/sh\n" + redirect + "printf discarded-prefix; i=0; while [ $i -lt 5000 ]; do printf abcdefghijklmnop; i=$((i+1)); done; printf failure-tail; exit 1\n"
+			if err := os.WriteFile(client.binary, []byte(script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			_, err := client.ListSessions(context.Background())
+			if err == nil {
+				t.Fatal("ListSessions() error = nil")
+			}
+			message := err.Error()
+			if !strings.Contains(message, "[output truncated]") || !strings.HasSuffix(message, "failure-tail") || strings.Contains(message, "discarded-prefix") {
+				t.Fatal("error did not retain the truncated diagnostic tail")
+			}
+			if len(message) > output.Limit+100 {
+				t.Fatalf("error diagnostics were not bounded: %d bytes", len(message))
+			}
+			var exitErr *exec.ExitError
+			if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+				t.Fatalf("exit status was not preserved: %v", err)
 			}
 		})
 	}
