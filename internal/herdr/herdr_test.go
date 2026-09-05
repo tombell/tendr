@@ -3,8 +3,11 @@ package herdr
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -252,4 +255,33 @@ func readLog(t *testing.T, path string) string {
 		t.Fatalf("ReadFile(%s) error = %v", path, err)
 	}
 	return string(data)
+}
+
+func TestStartSessionBoundsBlockedStatusCommand(t *testing.T) {
+	for _, canceled := range []bool{false, true} {
+		t.Run(strconv.FormatBool(canceled), func(t *testing.T) {
+			client, _ := newFakeClient(t)
+			client.readyTimeout = 30 * time.Millisecond
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			want := context.DeadlineExceeded
+			client.commandRunner = func(ctx context.Context, _ string, _ []string) ([]byte, error) {
+				if canceled {
+					cancel()
+				}
+				return exec.CommandContext(ctx, "/bin/sh", "-c", "exec sleep 10").CombinedOutput()
+			}
+			if canceled {
+				want = context.Canceled
+			}
+			started := time.Now()
+			err := client.StartSession(ctx, "blocked")
+			if !errors.Is(err, want) {
+				t.Fatalf("StartSession() error = %v, want %v", err, want)
+			}
+			if elapsed := time.Since(started); elapsed >= time.Second {
+				t.Fatalf("blocked status exceeded readiness deadline: %v", elapsed)
+			}
+		})
+	}
 }

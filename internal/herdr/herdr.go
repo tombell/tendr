@@ -141,14 +141,14 @@ func (c Client) StartSession(ctx context.Context, name string) error {
 		return fmt.Errorf("start server for session %q: %w", name, err)
 	}
 
-	deadline := time.NewTimer(c.readyTimeout)
-	defer deadline.Stop()
+	readyCtx, cancel := context.WithTimeout(ctx, c.readyTimeout)
+	defer cancel()
 	ticker := time.NewTicker(c.pollInterval)
 	defer ticker.Stop()
 
 	var lastErr error
 	for {
-		running, err := c.serverRunning(ctx, name)
+		running, err := c.serverRunning(readyCtx, name)
 		if err != nil {
 			lastErr = err
 		} else if running {
@@ -161,12 +161,9 @@ func (c Client) StartSession(ctx context.Context, name string) error {
 		}
 
 		select {
-		case <-ctx.Done():
+		case <-readyCtx.Done():
 			stopProcess(command)
-			return fmt.Errorf("wait for session %q readiness: %w", name, ctx.Err())
-		case <-deadline.C:
-			stopProcess(command)
-			return fmt.Errorf("wait for session %q readiness: %w", name, lastErr)
+			return fmt.Errorf("wait for session %q readiness (%v): %w", name, lastErr, readyCtx.Err())
 		case <-ticker.C:
 		}
 	}
