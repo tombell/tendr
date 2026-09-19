@@ -113,8 +113,18 @@ Project hooks run in the project root, workspace hooks in the workspace root, an
 
 ## Development
 
+With Nix installed and flakes enabled, enter the development environment:
+
 ```sh
-gofmt -w .
+nix develop
+```
+
+The flake provides Go, `gofumpt`, `gopls`, GNU Make, and Git on macOS and Linux (amd64 and arm64). Dependencies are pinned in `flake.lock`; update them with `nix flake update`. Herdr must still be installed separately to run Tendr against live sessions.
+
+Run the development checks and build:
+
+```sh
+gofumpt -w .
 go test ./... -count=1
 go vet ./...
 make prod
