@@ -116,7 +116,7 @@ func (c Config) Validate() error {
 				if pane.Direction != DirectionRight && pane.Direction != DirectionDown {
 					problems = append(problems, panePath+".direction must be right or down")
 				}
-				if pane.Ratio != nil && (*pane.Ratio <= 0 || *pane.Ratio >= 1) {
+				if pane.Ratio != nil && !(*pane.Ratio > 0 && *pane.Ratio < 1) {
 					problems = append(problems, panePath+".ratio must be greater than 0 and less than 1")
 				}
 				validateCommands(&problems, panePath+".commands", pane.Commands)

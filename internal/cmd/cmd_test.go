@@ -77,9 +77,13 @@ workspaces:
 	}
 }
 
-func TestLoadProjectsRejectsPathTraversal(t *testing.T) {
+func TestLoadProjectsRejectsInvalidNames(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	if _, err := loadProjects([]string{"../elsewhere"}); err == nil || !strings.Contains(err.Error(), "invalid project name") {
-		t.Fatalf("loadProjects() error = %v", err)
+	for _, name := range []string{"../elsewhere", "my app", "démo", ".", "..", "default", strings.Repeat("a", 65)} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := loadProjects([]string{name}); err == nil || !strings.Contains(err.Error(), "invalid project name") {
+				t.Fatalf("loadProjects() error = %v", err)
+			}
+		})
 	}
 }

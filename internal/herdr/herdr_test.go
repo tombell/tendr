@@ -203,6 +203,10 @@ func newFakeClient(t *testing.T) (Client, string) {
 	statePath := filepath.Join(dir, "status-count")
 	scriptPath := filepath.Join(dir, "herdr")
 	script := `#!/bin/sh
+if [ "${HERDR_SOCKET_PATH+x}" = x ]; then
+  printf 'inherited HERDR_SOCKET_PATH leaked\n' >&2
+  exit 1
+fi
 session="${HERDR_SESSION-unset}"
 printf '%s|%s\n' "$session" "$*" >> "$FAKE_HERDR_LOG"
 case "$*" in
@@ -247,6 +251,7 @@ esac
 	}
 	t.Setenv("FAKE_HERDR_LOG", logPath)
 	t.Setenv("FAKE_HERDR_STATE", statePath)
+	t.Setenv("HERDR_SOCKET_PATH", filepath.Join(dir, "ambient.sock"))
 	return New(scriptPath, nil), logPath
 }
 

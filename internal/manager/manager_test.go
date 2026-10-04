@@ -189,9 +189,10 @@ func TestStopDeletesMultipleProjectsThenRunsTheirHooks(t *testing.T) {
 func TestDefaultShellOverridesAmbientHerdrSession(t *testing.T) {
 	t.Setenv("SHELL", "/bin/sh")
 	t.Setenv("HERDR_SESSION", "ambient")
+	t.Setenv("HERDR_SOCKET_PATH", "/tmp/ambient.sock")
 
 	shell := NewDefaultShell(nil)
-	if err := shell.Run(context.Background(), "demo", t.TempDir(), `[ "$HERDR_SESSION" = "demo" ]`); err != nil {
+	if err := shell.Run(context.Background(), "demo", t.TempDir(), `[ "$HERDR_SESSION" = "demo" ] && [ "${HERDR_SOCKET_PATH+x}" != x ]`); err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
 }

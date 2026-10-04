@@ -110,7 +110,7 @@ func (c Client) AttachSession(ctx context.Context, name string, stdin io.Reader,
 	}
 
 	command := exec.CommandContext(ctx, c.binary, "session", "attach", name)
-	command.Env = withSession(os.Environ(), "")
+	command.Env = EnvironmentForSession(os.Environ(), "")
 	command.Stdin = stdin
 	command.Stdout = stdout
 	command.Stderr = stderr
@@ -126,7 +126,7 @@ func (c Client) StartSession(ctx context.Context, name string) error {
 	}
 
 	command := exec.Command(c.binary, "server")
-	command.Env = withSession(os.Environ(), name)
+	command.Env = EnvironmentForSession(os.Environ(), name)
 	detachProcess(command)
 
 	devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
@@ -321,7 +321,7 @@ func (c Client) run(ctx context.Context, session string, args ...string) ([]byte
 
 func (c Client) exec(ctx context.Context, session string, args []string) ([]byte, error) {
 	command := exec.CommandContext(ctx, c.binary, args...)
-	command.Env = withSession(os.Environ(), session)
+	command.Env = EnvironmentForSession(os.Environ(), session)
 	var stderr output.Tail
 	command.Stderr = &stderr
 	stdout, err := command.Output()
@@ -340,12 +340,14 @@ func (c Client) exec(ctx context.Context, session string, args []string) ([]byte
 	return stdout, nil
 }
 
-func withSession(environment []string, session string) []string {
+// EnvironmentForSession clears inherited socket overrides and selects the session.
+func EnvironmentForSession(environment []string, session string) []string {
 	result := make([]string, 0, len(environment)+1)
 	for _, variable := range environment {
-		if !strings.HasPrefix(variable, sessionEnvironment+"=") {
-			result = append(result, variable)
+		if strings.HasPrefix(variable, sessionEnvironment+"=") || strings.HasPrefix(variable, "HERDR_SOCKET_PATH=") {
+			continue
 		}
+		result = append(result, variable)
 	}
 	if session != "" {
 		result = append(result, sessionEnvironment+"="+session)

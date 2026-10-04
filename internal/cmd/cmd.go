@@ -103,7 +103,7 @@ func (a App) Start(projects []string, attach bool) error {
 }
 
 func (a App) Attach(name string) error {
-	if !validProjectName(name) {
+	if !validSessionName(name) {
 		return fmt.Errorf("invalid session name %q", name)
 	}
 
@@ -157,7 +157,24 @@ func loadProjects(projects []string) ([]*config.Config, error) {
 }
 
 func validProjectName(project string) bool {
-	return project != "" && filepath.Base(project) == project
+	return project != "default" && validSessionName(project)
+}
+
+func validSessionName(name string) bool {
+	if name == "" || len(name) > 64 || name == "." || name == ".." {
+		return false
+	}
+	for _, character := range name {
+		switch {
+		case character >= 'a' && character <= 'z',
+			character >= 'A' && character <= 'Z',
+			character >= '0' && character <= '9',
+			character == '.', character == '_', character == '-':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func projectsDirectory() (string, error) {

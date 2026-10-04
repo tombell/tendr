@@ -124,18 +124,18 @@ printf '%s\n' '{"sessions":[{"name":"running","running":true},{"name":"stopped",
 	}
 }
 
-func TestRunAttachConnectsStandardIO(t *testing.T) {
+func TestRunAttachDefaultSessionConnectsStandardIO(t *testing.T) {
 	dir := t.TempDir()
 	script := filepath.Join(dir, "herdr")
 	contents := `#!/bin/sh
 case "$*" in
   "session list --json")
-    printf '%s\n' '{"sessions":[{"name":"demo","running":true}]}'
+    printf '%s\n' '{"sessions":[{"name":"default","running":true}]}'
     ;;
-  "session attach demo")
+  "session attach default")
     IFS= read -r input
     printf 'attached:%s\n' "$input"
-    printf 'notice:demo\n' >&2
+    printf 'notice:default\n' >&2
     ;;
   *)
     printf 'unexpected arguments: %s\n' "$*" >&2
@@ -149,13 +149,13 @@ esac
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	var stdout, stderr bytes.Buffer
-	if err := run([]string{"attach", "demo"}, strings.NewReader("hello\n"), &stdout, &stderr); err != nil {
+	if err := run([]string{"attach", "default"}, strings.NewReader("hello\n"), &stdout, &stderr); err != nil {
 		t.Fatalf("run() error = %v", err)
 	}
 	if got, want := stdout.String(), "attached:hello\n"; got != want {
 		t.Fatalf("run() stdout = %q, want %q", got, want)
 	}
-	if got, want := stderr.String(), "notice:demo\n"; got != want {
+	if got, want := stderr.String(), "notice:default\n"; got != want {
 		t.Fatalf("run() stderr = %q, want %q", got, want)
 	}
 }

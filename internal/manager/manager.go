@@ -188,7 +188,7 @@ func (s DefaultShell) Run(ctx context.Context, session, root, command string) er
 
 	process := exec.CommandContext(ctx, shell, "-c", command)
 	process.Dir = root
-	process.Env = withEnvironmentVariable(os.Environ(), "HERDR_SESSION", session)
+	process.Env = herdr.EnvironmentForSession(os.Environ(), session)
 	var tail output.Tail
 	process.Stdout = &tail
 	process.Stderr = &tail
@@ -200,15 +200,4 @@ func (s DefaultShell) Run(ctx context.Context, session, root, command string) er
 		return err
 	}
 	return nil
-}
-
-func withEnvironmentVariable(environment []string, name, value string) []string {
-	result := make([]string, 0, len(environment)+1)
-	prefix := name + "="
-	for _, variable := range environment {
-		if !strings.HasPrefix(variable, prefix) {
-			result = append(result, variable)
-		}
-	}
-	return append(result, prefix+value)
 }

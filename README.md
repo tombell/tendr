@@ -61,6 +61,8 @@ tendr completion fish | source
 
 Create `~/.config/tendr/<name>.yml`. The filename without `.yml` becomes the Herdr session name.
 
+Project names must contain between 1 and 64 ASCII characters using letters, digits, `.`, `_`, or `-`. The names `.`, `..`, and `default` are reserved. Use `tendr attach default` to attach to Herdr's default session.
+
 ```yaml
 root: ~/Code/acme
 
@@ -107,27 +109,6 @@ See [`examples/project.yml`](examples/project.yml) for a standalone example.
 
 Roots inherit from project → workspace → tab → pane. Relative paths resolve from the parent root, absolute paths replace it, and `~` expands to the current user's home directory.
 
-Each project requires a root and at least one workspace. Each workspace requires at least one tab. Workspace and tab labels must be unique among siblings. Pane directions are `right` or `down`; optional ratios must be greater than `0` and less than `1`.
+Each project requires a root and at least one workspace. Each workspace requires at least one tab. Workspace and tab labels must be unique among siblings. Pane directions are `right` or `down`; optional ratios must be finite, greater than `0`, and less than `1`.
 
-Project hooks run in the project root, workspace hooks in the workspace root, and commands in their tab or pane root. Tendr sets `HERDR_SESSION` to the project's session name for every lifecycle hook, overriding any inherited value. Project `after_start` hooks run once after all workspaces have started successfully. Project `before_stop` hooks must succeed before the session is deleted.
-
-## Development
-
-With Nix installed and flakes enabled, enter the development environment:
-
-```sh
-nix develop
-```
-
-The flake provides Go, `gofumpt`, `gopls`, GNU Make, and Git on macOS and Linux (amd64 and arm64). Dependencies are pinned in `flake.lock`; update them with `nix flake update`. Herdr must still be installed separately to run Tendr against live sessions.
-
-Run the development checks and build:
-
-```sh
-gofumpt -w .
-go test ./... -count=1
-go vet ./...
-make prod
-```
-
-`make prod` builds Darwin and Linux binaries for amd64 and arm64.
+Project hooks run in the project root, workspace hooks in the workspace root, and commands in their tab or pane root. Tendr clears inherited `HERDR_SOCKET_PATH` overrides for Herdr commands and lifecycle hooks, and sets `HERDR_SESSION` to the project's session name for every lifecycle hook. Project `after_start` hooks run once after all workspaces have started successfully. Project `before_stop` hooks must succeed before the session is deleted.

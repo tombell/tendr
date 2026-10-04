@@ -157,6 +157,26 @@ func TestLoadRejectsInvalidYAML(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsNonFiniteRatios(t *testing.T) {
+	for _, ratio := range []string{".nan", ".inf", "-.inf"} {
+		t.Run(ratio, func(t *testing.T) {
+			contents := `root: /tmp
+workspaces:
+  - label: main
+    tabs:
+      - label: shell
+        panes:
+          - direction: right
+            ratio: RATIO
+`
+			path := writeConfig(t, t.TempDir(), "invalid.yml", strings.ReplaceAll(contents, "RATIO", ratio))
+			if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "ratio must be greater than 0 and less than 1") {
+				t.Fatalf("Load() error = %v", err)
+			}
+		})
+	}
+}
+
 func writeConfig(t *testing.T, dir, name, contents string) string {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
