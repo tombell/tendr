@@ -23,9 +23,11 @@ Commands:
 
 Special options:
 
-  -d/--debug    Show debug logging
-  -v/--version  Show the version number, then exit
-  --help        Show this message, then exit
+  -d/--debug               Show debug logging
+  --remote <ssh-target>    Run session commands on an SSH host
+  --machine <label-or-id>  Use a saved Herdr machine's SSH target
+  -v/--version             Show the version number, then exit
+  --help                   Show this message, then exit
 `
 
 func main() {
@@ -45,12 +47,16 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 
 	var debug bool
 	var version bool
+	var remote string
+	var machine string
 	flags.BoolVar(&debug, "debug", false, "")
 	flags.BoolVar(&debug, "d", false, "")
 	flags.BoolVar(&version, "version", false, "")
 	flags.BoolVar(&version, "v", false, "")
+	flags.StringVar(&remote, "remote", "", "SSH target")
+	flags.StringVar(&machine, "machine", "", "saved Herdr machine label or ID")
 
-	if err := flags.Parse(args); err != nil {
+	if err := parseFlags(flags, args); err != nil {
 		return err
 	}
 	if version {
@@ -70,17 +76,35 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	}
 
 	app := tendrcmd.New(logger, stdin, stdout, stderr)
+	var err error
 	switch remaining[0] {
 	case "__complete":
-		if len(remaining) != 2 || remaining[1] != "sessions" {
-			return errors.New("usage: tendr __complete sessions")
-		}
-		return app.ListRunningSessions()
-	case "attach":
 		if len(remaining) != 2 {
+			return errors.New("usage: tendr __complete <projects|sessions|machines>")
+		}
+		if remaining[1] != "machines" {
+			app, err = app.WithTarget(remote, machine)
+			if err != nil {
+				return err
+			}
+		}
+		return app.Complete(remaining[1])
+	case "attach":
+		attachFlags := flag.NewFlagSet("tendr attach", flag.ContinueOnError)
+		attachFlags.SetOutput(stderr)
+		attachFlags.StringVar(&remote, "remote", remote, "SSH target")
+		attachFlags.StringVar(&machine, "machine", machine, "saved Herdr machine label or ID")
+		if err := parseFlags(attachFlags, remaining[1:]); err != nil {
+			return err
+		}
+		if len(attachFlags.Args()) != 1 {
 			return errors.New("usage: tendr attach <name>")
 		}
-		return app.Attach(remaining[1])
+		app, err = app.WithTarget(remote, machine)
+		if err != nil {
+			return err
+		}
+		return app.Attach(attachFlags.Arg(0))
 	case "completion":
 		if len(remaining) != 2 {
 			return errors.New("usage: tendr completion <bash|fish|zsh>")
@@ -91,11 +115,17 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		listFlags.SetOutput(stderr)
 		var running bool
 		listFlags.BoolVar(&running, "running", false, "list running sessions")
-		if err := listFlags.Parse(remaining[1:]); err != nil {
+		listFlags.StringVar(&remote, "remote", remote, "SSH target")
+		listFlags.StringVar(&machine, "machine", machine, "saved Herdr machine label or ID")
+		if err := parseFlags(listFlags, remaining[1:]); err != nil {
 			return err
 		}
 		if len(listFlags.Args()) != 0 {
 			return errors.New("usage: tendr list [--running]")
+		}
+		app, err = app.WithTarget(remote, machine)
+		if err != nil {
+			return err
 		}
 		if running {
 			return app.ListRunningSessions()
@@ -106,13 +136,50 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		startFlags.SetOutput(stderr)
 		var attach bool
 		startFlags.BoolVar(&attach, "attach", false, "attach to the session after it starts")
-		if err := startFlags.Parse(remaining[1:]); err != nil {
+		startFlags.StringVar(&remote, "remote", remote, "SSH target")
+		startFlags.StringVar(&machine, "machine", machine, "saved Herdr machine label or ID")
+		if err := parseFlags(startFlags, remaining[1:]); err != nil {
+			return err
+		}
+		app, err = app.WithTarget(remote, machine)
+		if err != nil {
 			return err
 		}
 		return app.Start(startFlags.Args(), attach)
 	case "stop":
-		return app.Stop(remaining[1:])
+		stopFlags := flag.NewFlagSet("tendr stop", flag.ContinueOnError)
+		stopFlags.SetOutput(stderr)
+		stopFlags.StringVar(&remote, "remote", remote, "SSH target")
+		stopFlags.StringVar(&machine, "machine", machine, "saved Herdr machine label or ID")
+		if err := parseFlags(stopFlags, remaining[1:]); err != nil {
+			return err
+		}
+		app, err = app.WithTarget(remote, machine)
+		if err != nil {
+			return err
+		}
+		return app.Stop(stopFlags.Args())
 	default:
 		return fmt.Errorf("%q is not a known command", remaining[0])
 	}
+}
+
+func parseFlags(flags *flag.FlagSet, args []string) error {
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	var err error
+	flags.Visit(func(option *flag.Flag) {
+		if option.Name == "remote" && option.Value.String() == "" {
+			err = errors.New("--remote requires a non-empty SSH target")
+		}
+		if option.Name == "machine" && option.Value.String() == "" {
+			err = errors.New("--machine requires a non-empty Herdr machine label or ID")
+		}
+	})
+	remote, machine := flags.Lookup("remote"), flags.Lookup("machine")
+	if remote != nil && machine != nil && remote.Value.String() != "" && machine.Value.String() != "" {
+		return errors.New("--remote and --machine cannot be used together")
+	}
+	return err
 }

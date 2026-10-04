@@ -1,6 +1,6 @@
 # Tendr
 
-Tendr is a Go CLI for declaratively managing local [Herdr](https://herdr.dev/) projects. Each `~/.config/tendr/<name>.yml` file defines one named Herdr session, including its workspaces, tabs, panes, commands, and lifecycle hooks.
+Tendr is a Go CLI for declaratively managing [Herdr](https://herdr.dev/) projects locally or over SSH. Each `~/.config/tendr/<name>.yml` file defines one named Herdr session, including its workspaces, tabs, panes, commands, and lifecycle hooks.
 
 ## Install
 
@@ -24,6 +24,10 @@ tendr start <names...>
 tendr start --attach <name>
 tendr attach <name>
 tendr stop <names...>
+tendr --remote <ssh-target> start --attach <name>
+tendr --remote <ssh-target> attach <name>
+tendr --machine <label-or-id> start --attach <name>
+tendr --machine <label-or-id> attach <name>
 tendr completion <bash|fish|zsh>
 tendr --debug start <names...>
 tendr --version
@@ -34,9 +38,40 @@ tendr --version
 - `attach` connects the current terminal to an existing session.
 - `stop` runs each session's `before_stop` hooks, deletes the session and its persisted state, then runs its `after_stop` hooks.
 
+## Remote sessions
+
+Use `--remote` with an SSH config alias, `user@host`, or an SSH URI such as `ssh://you@server:2222`:
+
+```sh
+tendr --remote workbox list
+tendr --remote workbox start --attach acme
+tendr --remote workbox attach acme
+tendr --remote workbox list --running
+tendr --remote workbox stop acme
+```
+
+The flag also works after the command, before project names: `tendr start --remote workbox --attach acme`.
+
+To select a saved [Herdr machine](https://herdr.dev/docs/connecting-machines/), use `--machine` with a profile ID or a unique, case-sensitive label from `herdr machine list`:
+
+```sh
+tendr --machine "Build machine" start --attach acme
+tendr --machine "Build machine" attach acme
+tendr --machine "Build machine" list --running
+tendr stop --machine "Build machine" acme
+```
+
+Tendr reads the local catalog through `herdr machine list --json` and uses the profile's SSH target. The project name still chooses the Tendr session; the profile's saved remote session does not override it. Disabled, unknown, or ambiguous machines fail before connecting. Use either `--machine` or `--remote` in one command.
+
+Install Tendr and Herdr on the remote Linux or macOS host and make both available on the `PATH` used by SSH commands. Put project YAML files in the remote user's `~/.config/tendr/` directory. Roots, pane commands, and lifecycle hooks all run on that host. Local YAML files are not read or copied when `--remote` is set.
+
+Starting and stopping run remote Tendr through `ssh`. Starting multiple projects validates all their remote configs before creating sessions. With `--attach`, startup must succeed before the local Herdr client connects using `herdr --remote <ssh-target> --session <name>`. Attaching checks that the remote session exists and is running first; it does not need Tendr installed remotely. See [Herdr's remote access documentation](https://herdr.dev/docs/persistence-remote/) for client compatibility and keybindings.
+
+SSH uses your existing authentication and host configuration. Verify access with `ssh workbox`; load passphrase-protected keys into `ssh-agent` when your terminal cannot show a passphrase prompt. Detaching the local client leaves the remote session running.
+
 ## Shell completion
 
-Tendr can generate completion scripts for Bash, Fish and Zsh. The scripts complete commands and flags (including `start --attach`), configured projects for `start` and `stop`, and currently running Herdr sessions for `attach`.
+Tendr can generate completion scripts for Bash, Fish and Zsh. The scripts complete commands and flags (including `start --attach`, `--remote`, and `--machine`), configured projects for `start` and `stop`, and currently running Herdr sessions for `attach`. Machine completion offers enabled profile IDs and unambiguous labels. When `--remote` or `--machine` is present, project and session completions query that SSH host without authentication prompts and with a five-second timeout.
 
 For Bash, add this to `~/.bashrc`:
 
