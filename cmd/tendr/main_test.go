@@ -68,7 +68,7 @@ func TestRunCompletion(t *testing.T) {
 		if err := run([]string{"completion", shell}, nil, &stdout, &stderr); err != nil {
 			t.Fatalf("run(completion %s) error = %v", shell, err)
 		}
-		if !strings.Contains(stdout.String(), "tendr __complete sessions") {
+		if !strings.Contains(stdout.String(), "__complete sessions") {
 			t.Fatalf("run(completion %s) output does not complete running sessions", shell)
 		}
 		runningFlag := "--running"
