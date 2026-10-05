@@ -71,7 +71,7 @@ SSH uses your existing authentication and host configuration. Verify access with
 
 ## Shell completion
 
-Tendr can generate completion scripts for Bash, Fish and Zsh. The scripts complete commands and flags (including `start --attach`, `--remote`, and `--machine`), configured projects for `start` and `stop`, and currently running Herdr sessions for `attach`. Machine completion offers enabled profile IDs and unambiguous labels. When `--remote` or `--machine` is present, project and session completions query that SSH host without authentication prompts and with a five-second timeout.
+Tendr can generate completion scripts for Bash, Fish and Zsh. The scripts complete commands and flags (including `start --attach`, `--remote`, and `--machine`), configured projects for `start`, and currently running Herdr sessions for `attach` and `stop`. Machine completion offers enabled profile IDs and unambiguous labels. When `--remote` or `--machine` is present, project and session completions query that SSH host without authentication prompts and with a five-second timeout.
 
 For Bash, add this to `~/.bashrc`:
 

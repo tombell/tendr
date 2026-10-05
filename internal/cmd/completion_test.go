@@ -12,21 +12,26 @@ import (
 
 func TestCompletionQueriesSelectedRemoteHost(t *testing.T) {
 	tests := []struct {
-		words []string
-		query string
-		want  string
+		words   []string
+		query   string
+		want    string
+		exclude string
 	}{
-		{[]string{"tendr", "--remote", "workbox", "start", ""}, "--remote workbox __complete projects", "remote-project"},
-		{[]string{"tendr", "start", "--remote", "workbox", "--attach", ""}, "--remote workbox __complete projects", "remote-project"},
-		{[]string{"tendr", "attach", "--remote", "workbox", ""}, "--remote workbox __complete sessions", "remote-session"},
-		{[]string{"tendr", "--remote=workbox", "stop", ""}, "--remote workbox __complete projects", "remote-project"},
-		{[]string{"tendr", "--remote", "start", "attach", ""}, "--remote start __complete sessions", "remote-session"},
-		{[]string{"tendr", "start", "--remote", ""}, "", ""},
-		{[]string{"tendr", "--machine", "Build machine", "start", ""}, "--machine Build machine __complete projects", "remote-project"},
-		{[]string{"tendr", "attach", "--machine", "ssh_build", ""}, "--machine ssh_build __complete sessions", "remote-session"},
-		{[]string{"tendr", "--machine=start", "stop", ""}, "--machine start __complete projects", "remote-project"},
-		{[]string{"tendr", "--machine", ""}, "__complete machines", "ssh_build"},
-		{[]string{"tendr", "start", "--machine", ""}, "__complete machines", "ssh_build"},
+		{[]string{"tendr", "--remote", "workbox", "start", ""}, "--remote workbox __complete projects", "remote-project", ""},
+		{[]string{"tendr", "start", "--remote", "workbox", "--attach", ""}, "--remote workbox __complete projects", "remote-project", ""},
+		{[]string{"tendr", "attach", "--remote", "workbox", ""}, "--remote workbox __complete sessions", "remote-session", ""},
+		{[]string{"tendr", "stop", ""}, "__complete sessions", "remote-session", "remote-project"},
+		{[]string{"tendr", "stop", "remote-session", ""}, "__complete sessions", "other-session", "remote-session"},
+		{[]string{"tendr", "--remote=workbox", "stop", ""}, "--remote workbox __complete sessions", "remote-session", "remote-project"},
+		{[]string{"tendr", "stop", "--remote", "workbox", "remote-session", ""}, "--remote workbox __complete sessions", "other-session", "remote-session"},
+		{[]string{"tendr", "--remote", "start", "attach", ""}, "--remote start __complete sessions", "remote-session", ""},
+		{[]string{"tendr", "start", "--remote", ""}, "", "", ""},
+		{[]string{"tendr", "--machine", "Build machine", "start", ""}, "--machine Build machine __complete projects", "remote-project", ""},
+		{[]string{"tendr", "attach", "--machine", "ssh_build", ""}, "--machine ssh_build __complete sessions", "remote-session", ""},
+		{[]string{"tendr", "--machine=start", "stop", ""}, "--machine start __complete sessions", "remote-session", "remote-project"},
+		{[]string{"tendr", "stop", "--machine", "Build machine", "remote-session", ""}, "--machine Build machine __complete sessions", "other-session", "remote-session"},
+		{[]string{"tendr", "--machine", ""}, "__complete machines", "ssh_build", ""},
+		{[]string{"tendr", "start", "--machine", ""}, "__complete machines", "ssh_build", ""},
 	}
 	for _, shell := range []string{"bash", "zsh", "fish"} {
 		for _, test := range tests {
@@ -44,7 +49,7 @@ fi
 printf '%s\n' "$*" > "$TENDR_COMPLETION_LOG"
 case "$*" in
   "__complete machines") printf 'Build machine\nssh_build\n' ;;
-  *"__complete sessions") printf 'remote-session\n' ;;
+  *"__complete sessions") printf 'remote-session\nother-session\n' ;;
   *"__complete projects") printf 'remote-project\n' ;;
 esac
 `
@@ -88,6 +93,9 @@ esac
 				}
 				if test.want != "" && !strings.Contains(string(output), test.want) {
 					t.Fatalf("completion candidates = %q, want %q", output, test.want)
+				}
+				if test.exclude != "" && strings.Contains(string(output), test.exclude) {
+					t.Fatalf("completion candidates = %q, should exclude %q", output, test.exclude)
 				}
 				query, err := os.ReadFile(logPath)
 				if test.query == "" {
