@@ -130,7 +130,7 @@ _tendr() {
         if [[ "$used" == false ]]; then
           COMPREPLY[${#COMPREPLY[@]}]="$candidate"
         fi
-      done < <(tendr "${remote_args[@]}" __complete projects 2>/dev/null)
+      done < <(tendr "${remote_args[@]}" __complete sessions 2>/dev/null)
       ;;
   esac
 }
@@ -247,9 +247,9 @@ _tendr() {
         compadd -- --remote --machine
         return
       fi
-      projects=("${(@f)$(tendr "${remote_args[@]}" __complete projects 2>/dev/null)}")
+      sessions=("${(@f)$(tendr "${remote_args[@]}" __complete sessions 2>/dev/null)}")
       candidates=()
-      for candidate in "${projects[@]}"; do
+      for candidate in "${sessions[@]}"; do
         [[ -n "$candidate" ]] || continue
         used=0
         for ((i = command_index + 1; i < CURRENT; i++)); do
@@ -375,8 +375,11 @@ function __tendr_projects
 end
 
 function __tendr_running_sessions
+    set -l used (commandline -xpc)
     for session in (__tendr_query __complete sessions 2>/dev/null)
-        string escape -- $session
+        if not contains -- $session $used
+            string escape -- $session
+        end
     end
 end
 
@@ -398,7 +401,7 @@ complete -c tendr -n '__tendr_needs_argument completion' -a 'bash fish zsh'
 complete -c tendr -n '__tendr_needs_argument list' -l running -d 'List running sessions'
 complete -c tendr -n '__tendr_using_subcommand start' -l attach -d 'Attach after starting'
 complete -c tendr -n '__tendr_using_subcommand start' -a '(__tendr_projects)'
-complete -c tendr -n '__tendr_using_subcommand stop' -a '(__tendr_projects)'
+complete -c tendr -n '__tendr_using_subcommand stop' -a '(__tendr_running_sessions)'
 `
 
 func (a App) Completion(shell string) error {
